@@ -1,7 +1,5 @@
 import os
 import pandas as pd
-from fontTools.ttLib.tables.otTables import DeltaSetIndexMap
-from fontTools.varLib.models import nonNone
 
 
 # noinspection PyPep8Naming,NonAsciiCharacters,SpellCheckingInspection

@@ -6,8 +6,7 @@ import time
 import pandas as pd
 import multiprocessing as mp
 
-import ut.로그maker, ut.폴더manager
-import trader.bot_트레이딩, trader.bot_화면관리, trader.bot_실시간수신, trader.bot_실시간저장
+import trader, ut
 
 
 # noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode
