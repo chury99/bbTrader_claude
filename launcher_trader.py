@@ -16,7 +16,7 @@ class LauncherTrader:
         self.folder_프로젝트 = os.path.dirname(os.path.abspath(__file__))
         self.s_파일명 = os.path.basename(__file__).replace('.py', '')
         # dic_config = json.load(open(os.path.join(self.folder_프로젝트, 'config.json'), mode='rt', encoding='utf-8'))
-        dic_config = ut.도구manager.config로딩()
+        dic_config = ut.도구manager.ToolManager().config로딩()
 
         # 로그 설정
         log = ut.로그maker.LogMaker(s_파일명=self.s_파일명, s_로그명='로그이름_trader')
@@ -40,54 +40,92 @@ class LauncherTrader:
         self.make_로그(f'구동 시작')
 
     def run_트레이더(self):
-        """ 트레이딩을 위한 bot 실행 - 병렬 구동 """
-        # queue 생성
-        queue_mp_실시간저장 = mp.Queue()
+        """ 트레이딩을 위한 bot 실행 """
+        # # 프로세스 정의
+        # dic_매매봇 = dict(s_타겟=trader.bot_트레이딩.run, s_네임='bot_트레이딩')
+        #
+        # # 프로세스 실행 - 비정상 종료 시 재실행
+        # dt_에러발생 = pd.Timestamp.now()
+        # while True:
+        #     # 프로세스 구동
+        #     p_매매봇 = mp.Process(target=dic_매매봇['s_타겟'], name=dic_매매봇['s_네임'])
+        #     p_매매봇.start()
+        #     p_매매봇.join()
+        #
+        #     # 정상 종료 시 종료
+        #     if p_매매봇.exitcode <= 0:
+        #         break
+        #
+        #     # 비정상 종료 처리
+        #     else:
+        #         time.sleep(1)
+        #         if pd.Timestamp.now() - dt_에러발생 < pd.Timedelta(seconds=3):
+        #             break
+        #         else:
+        #             self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=f'{p_매매봇.name} 모듈 재시작')
+        #             dt_에러발생 = pd.Timestamp.now()
+        #
+        # # 로그 기록
+        # if p_매매봇.exitcode <= 0:
+        #     self.make_로그(f'{p_매매봇.name} 구동 완료')
+        # else:
+        #     self.send_카톡_오류발생(s_프로세스명=p_매매봇.name, n_오류코드=p_매매봇.exitcode)
 
-        # 실행 모듈 정의
-        dic_모듈 = dict(
-            bot_실시간수신=(trader.bot_실시간수신.run, queue_mp_실시간저장),
-            bot_실시간저장=(trader.bot_실시간저장.run, queue_mp_실시간저장)
-                      )
+
+        # # queue 생성
+        # queue_mp_실시간저장 = mp.Queue()
+        #
+        # # 실행 모듈 정의
+        # dic_모듈 = dict(
+        #     bot_실시간수신=(trader.bot_실시간수신.run, queue_mp_실시간저장),
+        #     bot_실시간저장=(trader.bot_실시간저장.run, queue_mp_실시간저장)
+        #               )
+        #
+        # # 프로세스 생성 및 실행
+        # dic_프로세스 = {s_모듈명: mp.Process(target=obj_모듈, args=(obj_인자,), name=s_모듈명)
+        #             for s_모듈명, (obj_모듈, obj_인자) in dic_모듈.items()}
+        # for p_봇 in dic_프로세스.values():
+        #     p_봇.start()
 
         # 프로세스 생성 및 실행
-        dic_프로세스 = {s_모듈명: mp.Process(target=obj_모듈, args=(obj_인자,), name=s_모듈명)
-                    for s_모듈명, (obj_모듈, obj_인자) in dic_모듈.items()}
-        for p_봇 in dic_프로세스.values():
-            p_봇.start()
+        dic_매매봇 = dict(s_타겟=trader.bot_트레이딩.run, s_네임='봉봉trader')
+        p_매매봇 = mp.Process(target=dic_매매봇['s_타겟'], name=dic_매매봇['s_네임'])
+        p_매매봇.start()
 
         # 감시 루프 구동
         b_동작중 = True
         dt_에러발생 = pd.Timestamp.now()
         while True:
             # 프로세스별 확인
-            for s_모듈명, p_봇 in dic_프로세스.items():
+            # for s_모듈명, p_봇 in dic_프로세스.items():
 
-                # 종료시간 이후라면 프로세스 종료
-                if pd.Timestamp.now() > pd.Timestamp(self.s_종료시각):
-                    ret = queue_mp_실시간저장.put(['종료']) if s_모듈명 == 'bot_실시간저장'\
-                            else p_봇.terminate() if p_봇.is_alive() else None
-                    b_동작중 = False
+            # 종료시간 이후라면 프로세스 종료
+            if pd.Timestamp.now() > pd.Timestamp(self.s_종료시각):
+                # ret = queue_mp_실시간저장.put(['종료']) if s_모듈명 == 'bot_실시간저장'\
+                #         else p_봇.terminate() if p_봇.is_alive() else None
+                ret = p_매매봇.terminate() if p_매매봇.is_alive() else None
+                b_동작중 = False
 
-                # 종료시간 내 비정상 종료 시 재시감시
-                elif not p_봇.is_alive():
-                    # 오류 발생 시 재실행
-                    if p_봇.exitcode == 1:
-                        # 연속 재실행 검사
-                        if pd.Timestamp.now() - dt_에러발생 < pd.Timedelta(seconds=3):
-                            b_동작중 = False
-                            continue
-                        # 모듈 재실행
-                        self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=f'{p_봇.name} 모듈 재시작')
-                        (obj_모듈, obj_인자) = dic_모듈[s_모듈명]
-                        dic_프로세스[s_모듈명] = mp.Process(target=obj_모듈, args=(obj_인자,), name=s_모듈명)
-                        dic_프로세스[s_모듈명].start()
-                        dt_에러발생 = pd.Timestamp.now()
-
-                    # 이외 경우에는 오류 알림
-                    else:
-                        self.send_카톡_오류발생(s_프로세스명=p_봇.name, n_오류코드=p_봇.exitcode)
+            # 종료시간 내 비정상 종료 시 재시작
+            elif not p_매매봇.is_alive():
+                # 오류 발생 시 재실행
+                if p_매매봇.exitcode == 1:
+                    # 연속 재실행 검사
+                    if pd.Timestamp.now() - dt_에러발생 < pd.Timedelta(seconds=3):
                         b_동작중 = False
+                        continue
+                    # 모듈 재실행
+                    self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=f'{p_매매봇.name} 모듈 재시작')
+                    # (obj_모듈, obj_인자) = dic_모듈[s_모듈명]
+                    # dic_프로세스[s_모듈명] = mp.Process(target=obj_모듈, args=(obj_인자,), name=s_모듈명)
+                    # dic_프로세스[s_모듈명].start()
+                    p_매매봇.start()
+                    dt_에러발생 = pd.Timestamp.now()
+
+                # 이외 경우에는 오류 알림
+                else:
+                    self.send_카톡_오류발생(s_프로세스명=p_매매봇.name, n_오류코드=p_매매봇.exitcode)
+                    b_동작중 = False
 
             # 동작 종료 시 감시 루프 해제
             if not b_동작중:
@@ -97,15 +135,16 @@ class LauncherTrader:
             time.sleep(0.1)
 
         # 프로세스 종료 처리
-        for p_봇 in dic_프로세스.values():
-            # 종료 대기
-            p_봇.join()
+        # for p_봇 in dic_프로세스.values():
+        #     # 종료 대기
+        #     p_봇.join()
+        p_매매봇.join()
 
-            # 로그 기록
-            if p_봇.exitcode <= 0:
-                self.make_로그(f'{p_봇.name} 구동 완료')
-            else:
-                self.send_카톡_오류발생(s_프로세스명=p_봇.name, n_오류코드=p_봇.exitcode)
+        # 로그 기록
+        if p_매매봇.exitcode <= 0:
+            self.make_로그(f'{p_매매봇.name} 구동 완료')
+        else:
+            self.send_카톡_오류발생(s_프로세스명=p_매매봇.name, n_오류코드=p_매매봇.exitcode)
 
     def send_카톡_오류발생(self, s_프로세스명, n_오류코드):
         """ 실행 오류 발생 시 프로세스명 포함하여 카톡 메세지 송부 """

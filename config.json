@@ -11,6 +11,10 @@
         "mac" : "/Users/chury99/PycharmProjects/api-kakao",
         "win" : "C:/Users/user/PycharmProjects/api-kakao"
     },
+    "folder_kiwoom" : {
+        "mac" : "/Users/chury99/PycharmProjects/spTraderV2/xapi",
+        "win" : "C:/Users/user/PycharmProjects/spTraderV2/xapi"
+    },
     "path_파이썬" : {
         "mac" : "/Users/chury99/PycharmProjects/bbTrader/.venv/bin/pyton",
         "win" : "C:/Python313-64/python.exe"
