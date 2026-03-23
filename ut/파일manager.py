@@ -26,7 +26,7 @@ class FileManager:
         self.make_로그 = log.make_로그
 
         # 폴더 정의
-        self.dic_폴더정보 = ut.폴더manager.define_폴더정보()
+        dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
         self.folder_work = dic_config['folder_work']
         self.folder_log = dic_config['folder_log']
 
