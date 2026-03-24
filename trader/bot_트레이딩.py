@@ -1,9 +1,8 @@
 import os
 import sys
-import json
+# import json
 import time
-import re
-from itertools import chain
+# import re
 
 import pandas as pd
 
@@ -18,7 +17,6 @@ class TraderBot:
         self.folder_베이스 = os.path.dirname(os.path.abspath(__file__))
         self.folder_프로젝트 = os.path.dirname(self.folder_베이스)
         self.s_파일명 = os.path.basename(__file__).replace('.py', '')
-        # dic_config = json.load(open(os.path.join(self.folder_프로젝트, 'config.json'), mode='rt', encoding='utf-8'))
         dic_config = ut.도구manager.ToolManager().config로딩()
 
         # 로그 설정
@@ -37,6 +35,8 @@ class TraderBot:
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
         self.s_종료시각 = dic_config['종료시각']
         self.n_tr딜레이 = 0.2
+        self.n_손절수익률 = 3
+        self.n_익절수익률 = self.n_손절수익률 * 3
 
         # 사용 모듈 정의
         self.tool = ut.도구manager.ToolManager()
@@ -55,8 +55,6 @@ class TraderBot:
         '''
 
         # 보유종목 확인
-        # self.dic_계좌잔고, self.df_종목별잔고 = self.api.tr_체결잔고요청()
-        # self.dic_종목코드2종목명 = self.df_종목별잔고.set_index('종목코드')['종목명'].to_dict()
         self.dic_계좌잔고, self.df_종목별잔고, self.dic_종목코드2종목명 = self._get_종목별잔고()
         time.sleep(self.n_tr딜레이)
 
@@ -131,12 +129,12 @@ class TraderBot:
                     # 매도주문 요청
                     n_주문수량 = n_현재잔고
                     n_주문단가 = self.tool.find_주문단가(n_기준가=n_기준가, n_틱보정=-5)
-                    # ret = self.api.tr_주식주문(s_구분='매도', s_종목코드=s_종목코드, n_주문수량=n_주문수량, n_주문단가=n_주문단가, s_매매구분='IOC보통')
+                    ret = self.api.tr_주식주문(s_구분='매도', s_종목코드=s_종목코드, n_주문수량=n_주문수량, n_주문단가=n_주문단가, s_매매구분='IOC보통')
                     time.sleep(self.n_tr딜레이)
 
                     # 로그 기록
                     self.make_로그(f'매도주문 완료\n'
-                                 f' - {s_매도사유} | {s_종목명}({s_종목코드}) {n_매수가:,.0f}->{n_주문단가:,.0f}원 {n_주문수량:,.0f}주')
+                                 f' - {s_매도사유} | {s_종목명}({s_종목코드}) {n_매수가:,.0f} -> {n_주문단가:,.0f}원 {n_주문수량:,.0f}주')
 
                 # 매도신호 초기화
                 b_매도신호 = False
@@ -155,7 +153,6 @@ class TraderBot:
     def check_매도신호(self, li_대상종목):
         """ 보유 종목의 매도신호 확인해서 리턴 """
         # 종목별 데이터 확인
-        # li_대상종목 = self.df_종목별잔고['종목코드'].tolist()
         li_dic매도신호 = list()
         for s_종목코드 in li_대상종목:
             # 3분봉 준비
@@ -164,7 +161,6 @@ class TraderBot:
             df_분봉 = df_분봉.loc[df_분봉['일자'] == self.s_오늘].sort_values('시간')
             df_분봉 = df_분봉.loc[df_분봉['시간'] < pd.Timestamp.now().floor('3min').strftime('%H:%M:%S')]
             if df_분봉.empty: continue
-            # if len(df_분봉) < 4: continue
 
             # 추가지표 생성
             df_분봉['고저'] = df_분봉['고가'] - df_분봉['저가']
@@ -177,7 +173,9 @@ class TraderBot:
             s_종목명 = self.dic_종목코드2종목명[s_종목코드]
             n_매수가 = self.df_종목별잔고.loc[s_종목코드, '매입단가']
             s_시간1 = df_분봉['시간'].values[-1]
+            n_시가1 = df_분봉['시가'].values[-1]
             n_종가1 = df_분봉['종가'].values[-1]
+            n_비디1 = (n_종가1 - n_시가1) / n_시가1 * 100
             n_당일고가 = df_분봉['고가'].max()
             n_저가3봉 = df_분봉['저가'].values[-4:-1].min() if len(df_분봉) >= 4 else df_분봉['저가'].min()
             n_수익률 = (n_종가1 / n_매수가 - 1) * 100 - 0.2
@@ -187,23 +185,24 @@ class TraderBot:
             # 매도신호 확인 - 익절
             n_익절기준가 = n_당일고가 - 2 * n_ATR14 if n_ATR14 is not None else 0
             b_고가이탈 = n_종가1 < n_익절기준가 if n_ATR14 is not None else n_종가1 < n_저가3봉
-            b_익절 = (n_고가수익률 > 10) and b_고가이탈
+            b_익절 = (n_고가수익률 > self.n_익절수익률) and b_고가이탈 and (n_비디1 < 0)
 
             # 매도신호 확인 - 손절
-            n_손절기준가 = n_매수가 * (100 - 3 - 0.2) / 100
-            b_손절 = (n_종가1 < n_손절기준가) and (s_시간1 > '09:10:00')
+            n_손절기준가 = n_매수가 * (100 - self.n_손절수익률 - 0.2) / 100
+            b_손절 = (n_종가1 < n_손절기준가) and (s_시간1 > '09:10:00') and (n_비디1 < 0)
 
             # 결과 정리
             b_매도신호 = b_익절 or b_손절
             s_매도사유 = '익절' if b_익절 else '손절' if b_손절 else '없음'
             dic_매도신호 = dict(종목코드=s_종목코드, 종목명=s_종목명, 매도신호=b_매도신호, 매도사유=s_매도사유, 익절신호=b_익절, 손절신호=b_손절)
-            dic_매도신호.update(매수가=n_매수가, 종가1=n_종가1, 수익률=n_수익률, 익절기준가=n_익절기준가, 손절기준가=n_손절기준가,
+            dic_매도신호.update(매수가=n_매수가, 종가1=n_종가1, 수익률=n_수익률,
+                            익절기준가=n_익절기준가, 손절기준가=n_손절기준가, 익절수익률=self.n_익절수익률, 손절수익률=self.n_손절수익률,
                             저가3봉=n_저가3봉, 당일고가=n_당일고가, 고가수익률=n_고가수익률, ATR14=n_ATR14)
             li_dic매도신호.append(dic_매도신호)
 
         # df 정리
-        df_매도신호 = pd.DataFrame(li_dic매도신호)
-        df_매도신호 = df_매도신호.set_index('종목코드', drop=False)
+        df_매도신호 = pd.DataFrame(li_dic매도신호) if len(li_dic매도신호) > 0 else pd.DataFrame()
+        df_매도신호 = df_매도신호.set_index('종목코드', drop=False) if not df_매도신호.empty else df_매도신호
 
         return df_매도신호
 

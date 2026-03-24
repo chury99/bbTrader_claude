@@ -1,6 +1,6 @@
 import os
 import sys
-import json
+# import json
 import time
 
 import pandas as pd
@@ -11,11 +11,11 @@ import trader, ut
 
 # noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode
 class LauncherTrader:
+    # noinspection PyUnresolvedReferences
     def __init__(self):
         # config 읽어 오기
         self.folder_프로젝트 = os.path.dirname(os.path.abspath(__file__))
         self.s_파일명 = os.path.basename(__file__).replace('.py', '')
-        # dic_config = json.load(open(os.path.join(self.folder_프로젝트, 'config.json'), mode='rt', encoding='utf-8'))
         dic_config = ut.도구manager.ToolManager().config로딩()
 
         # 로그 설정
@@ -32,7 +32,6 @@ class LauncherTrader:
 
         # 카카오 API 연결
         sys.path.append(dic_config['folder_kakao'])
-        # noinspection PyUnresolvedReferences
         import API_kakao
         self.kakao = API_kakao.KakaoAPI()
 
@@ -41,52 +40,6 @@ class LauncherTrader:
 
     def run_트레이더(self):
         """ 트레이딩을 위한 bot 실행 """
-        # # 프로세스 정의
-        # dic_매매봇 = dict(s_타겟=trader.bot_트레이딩.run, s_네임='bot_트레이딩')
-        #
-        # # 프로세스 실행 - 비정상 종료 시 재실행
-        # dt_에러발생 = pd.Timestamp.now()
-        # while True:
-        #     # 프로세스 구동
-        #     p_매매봇 = mp.Process(target=dic_매매봇['s_타겟'], name=dic_매매봇['s_네임'])
-        #     p_매매봇.start()
-        #     p_매매봇.join()
-        #
-        #     # 정상 종료 시 종료
-        #     if p_매매봇.exitcode <= 0:
-        #         break
-        #
-        #     # 비정상 종료 처리
-        #     else:
-        #         time.sleep(1)
-        #         if pd.Timestamp.now() - dt_에러발생 < pd.Timedelta(seconds=3):
-        #             break
-        #         else:
-        #             self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=f'{p_매매봇.name} 모듈 재시작')
-        #             dt_에러발생 = pd.Timestamp.now()
-        #
-        # # 로그 기록
-        # if p_매매봇.exitcode <= 0:
-        #     self.make_로그(f'{p_매매봇.name} 구동 완료')
-        # else:
-        #     self.send_카톡_오류발생(s_프로세스명=p_매매봇.name, n_오류코드=p_매매봇.exitcode)
-
-
-        # # queue 생성
-        # queue_mp_실시간저장 = mp.Queue()
-        #
-        # # 실행 모듈 정의
-        # dic_모듈 = dict(
-        #     bot_실시간수신=(trader.bot_실시간수신.run, queue_mp_실시간저장),
-        #     bot_실시간저장=(trader.bot_실시간저장.run, queue_mp_실시간저장)
-        #               )
-        #
-        # # 프로세스 생성 및 실행
-        # dic_프로세스 = {s_모듈명: mp.Process(target=obj_모듈, args=(obj_인자,), name=s_모듈명)
-        #             for s_모듈명, (obj_모듈, obj_인자) in dic_모듈.items()}
-        # for p_봇 in dic_프로세스.values():
-        #     p_봇.start()
-
         # 프로세스 생성 및 실행
         dic_매매봇 = dict(s_타겟=trader.bot_트레이딩.run, s_네임='봉봉trader')
         p_매매봇 = mp.Process(target=dic_매매봇['s_타겟'], name=dic_매매봇['s_네임'])
@@ -96,13 +49,8 @@ class LauncherTrader:
         b_동작중 = True
         dt_에러발생 = pd.Timestamp.now()
         while True:
-            # 프로세스별 확인
-            # for s_모듈명, p_봇 in dic_프로세스.items():
-
             # 종료시간 이후라면 프로세스 종료
             if pd.Timestamp.now() > pd.Timestamp(self.s_종료시각):
-                # ret = queue_mp_실시간저장.put(['종료']) if s_모듈명 == 'bot_실시간저장'\
-                #         else p_봇.terminate() if p_봇.is_alive() else None
                 ret = p_매매봇.terminate() if p_매매봇.is_alive() else None
                 b_동작중 = False
 
@@ -116,9 +64,7 @@ class LauncherTrader:
                         continue
                     # 모듈 재실행
                     self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=f'{p_매매봇.name} 모듈 재시작')
-                    # (obj_모듈, obj_인자) = dic_모듈[s_모듈명]
-                    # dic_프로세스[s_모듈명] = mp.Process(target=obj_모듈, args=(obj_인자,), name=s_모듈명)
-                    # dic_프로세스[s_모듈명].start()
+                    p_매매봇 = mp.Process(target=dic_매매봇['s_타겟'], name=dic_매매봇['s_네임'])
                     p_매매봇.start()
                     dt_에러발생 = pd.Timestamp.now()
 
@@ -135,9 +81,6 @@ class LauncherTrader:
             time.sleep(0.1)
 
         # 프로세스 종료 처리
-        # for p_봇 in dic_프로세스.values():
-        #     # 종료 대기
-        #     p_봇.join()
         p_매매봇.join()
 
         # 로그 기록
