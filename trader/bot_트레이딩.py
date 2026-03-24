@@ -35,8 +35,9 @@ class TraderBot:
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
         self.s_종료시각 = dic_config['종료시각']
         self.n_tr딜레이 = 0.2
-        self.n_손절수익률 = 3
-        self.n_익절수익률 = self.n_손절수익률 * 3
+        self.s_계좌번호 = str(dic_config['계좌번호'])
+        self.n_손절수익률 = int(dic_config['손절수익률'])
+        self.n_익절수익률 = int(dic_config['익절수익률'])
 
         # 사용 모듈 정의
         self.tool = ut.도구manager.ToolManager()
@@ -44,7 +45,7 @@ class TraderBot:
         # 키움 API 연결
         sys.path.append(dic_config['folder_kiwoom'])
         import RestAPI_kiwoom
-        self.api = RestAPI_kiwoom.RestAPIkiwoom(s_계좌번호='53977788')
+        self.api = RestAPI_kiwoom.RestAPIkiwoom(s_계좌번호=self.s_계좌번호)
         '''
         dic_계좌잔고, df_종목별잔고 = self.api.tr_체결잔고요청()
         df_일봉 = self.api.tr_주식일봉차트조회요청(s_종목코드='000020', s_시작일자=None, s_종료일자=None)
@@ -108,7 +109,7 @@ class TraderBot:
                 # 로그 기록
                 li_매도종목명 = [self.dic_종목코드2종목명.get(종목코드) for 종목코드 in li_매도종목]
                 self.make_로그(f'매도신호 탐색\n'
-                             f' - 매도대상 {len(li_매도종목명)}건 {li_매도종목명}')
+                             f' - 보유종목 {len(self.df_종목별잔고)}, 매도대상 {len(li_매도종목명)} {li_매도종목명}')
 
                 # 탐색신호 초기화
                 b_탐색신호 = False
@@ -195,9 +196,10 @@ class TraderBot:
             b_매도신호 = b_익절 or b_손절
             s_매도사유 = '익절' if b_익절 else '손절' if b_손절 else '없음'
             dic_매도신호 = dict(종목코드=s_종목코드, 종목명=s_종목명, 매도신호=b_매도신호, 매도사유=s_매도사유, 익절신호=b_익절, 손절신호=b_손절)
-            dic_매도신호.update(매수가=n_매수가, 종가1=n_종가1, 수익률=n_수익률,
-                            익절기준가=n_익절기준가, 손절기준가=n_손절기준가, 익절수익률=self.n_익절수익률, 손절수익률=self.n_손절수익률,
-                            저가3봉=n_저가3봉, 당일고가=n_당일고가, 고가수익률=n_고가수익률, ATR14=n_ATR14)
+            dic_매도신호.update(매수가=n_매수가, 종가1=n_종가1,
+                            수익률=n_수익률, 고가수익률=n_고가수익률, 익절기준가=n_익절기준가, 손절기준가=n_손절기준가,
+                            당일고가=n_당일고가, 저가3봉=n_저가3봉, ATR14=n_ATR14,
+                            익절수익률=self.n_익절수익률, 손절수익률=self.n_손절수익률)
             li_dic매도신호.append(dic_매도신호)
 
         # df 정리
