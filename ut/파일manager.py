@@ -7,7 +7,8 @@ import shutil
 import pandas as pd
 import paramiko
 
-import ut.도구manager, ut.로그maker, ut.폴더manager
+# import ut.도구manager, ut.로그maker, ut.폴더manager
+import ut
 
 
 # noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection
@@ -18,7 +19,7 @@ class FileManager:
         self.folder_프로젝트 = os.path.dirname(self.folder_베이스)
         self.s_파일명 = os.path.basename(__file__).replace('.py', '')
         # dic_config = json.load(open(os.path.join(self.folder_프로젝트, 'config.json'), mode='rt', encoding='utf-8'))
-        dic_config = ut.도구manager.config로딩()
+        dic_config = ut.도구manager.ToolManager().config로딩()
 
         # 로그 설정
         log = ut.로그maker.LogMaker(s_파일명=self.s_파일명, s_로그명='로그이름_rotator')
@@ -26,7 +27,7 @@ class FileManager:
         self.make_로그 = log.make_로그
 
         # 폴더 정의
-        dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
+        self.dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
         self.folder_work = dic_config['folder_work']
         self.folder_log = dic_config['folder_log']
 
@@ -79,10 +80,12 @@ class FileManager:
     def rotate_보관파일(self):
         """ 로컬머신 대상으로 보관기간 경과된 파일 삭제 """
         # 기준정보 정의
-        dic_보관기간 = dict(로그=self.dic_config['파일보관기간(일)_log'], 분석=self.dic_config['파일보관기간(일)_analyzer'],
-                    데이터=self.dic_config['파일보관기간(일)_collector'], 매수매도=self.dic_config['파일보관기간(일)_trader'])
-        li_제외폴더 = self._find_하위폴더(s_기준폴더='매수매도|주문체결', b_전체폴더명=True) +\
-                    self._find_하위폴더(s_기준폴더='데이터|차트수집', b_전체폴더명=True)
+        # dic_보관기간 = dict(로그=self.dic_config['파일보관기간(일)_log'], 분석=self.dic_config['파일보관기간(일)_analyzer'],
+        #             데이터=self.dic_config['파일보관기간(일)_collector'], 매수매도=self.dic_config['파일보관기간(일)_trader'])
+        # li_제외폴더 = self._find_하위폴더(s_기준폴더='매수매도|주문체결', b_전체폴더명=True) +\
+        #             self._find_하위폴더(s_기준폴더='데이터|차트수집', b_전체폴더명=True)
+        dic_보관기간 = dict(매수매도=self.dic_config['파일보관기간(일)_trader'])
+        li_제외폴더 = list()
 
         # 메인폴더별 파일 탐색
         for s_메인폴더, s_보관기간 in dic_보관기간.items():
@@ -255,7 +258,7 @@ def run():
     """ 실행 함수 """
     f = FileManager()
     f.update_메인서버()
-    f.update_보조서버()
+    # f.update_보조서버()
     f.rotate_보관파일()
     f.check_잔여공간()
 

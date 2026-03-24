@@ -215,6 +215,7 @@ class TraderBot:
 
         # 데이터 정리
         df_종목별잔고['종목코드'] = df_종목별잔고['종목코드'].str.replace('A', '')
+        df_종목별잔고['조회일자'] = pd.Timestamp.now().strftime('%Y%m%d')
         df_종목별잔고['조회시간'] = pd.Timestamp.now().strftime('%H:%M:%S')
         df_종목별잔고 = df_종목별잔고.set_index('종목코드', drop=False)
         dic_종목코드2종목명 = df_종목별잔고['종목명'].to_dict()
