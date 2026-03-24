@@ -1,8 +1,9 @@
 import os
+import re
 import sys
 # import json
 import time
-# import re
+import re
 
 import pandas as pd
 
@@ -26,6 +27,7 @@ class TraderBot:
 
         # 폴더 정의
         dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
+        self.folder_work = dic_폴더정보['folder_work']
         self.folder_종목잔고 = dic_폴더정보['매수매도|종목잔고']
         self.folder_신호탐색 = dic_폴더정보['매수매도|신호탐색']
         os.makedirs(self.folder_종목잔고, exist_ok=True)
@@ -215,15 +217,52 @@ class TraderBot:
 
         # 데이터 정리
         df_종목별잔고['종목코드'] = df_종목별잔고['종목코드'].str.replace('A', '')
-        df_종목별잔고['조회일자'] = pd.Timestamp.now().strftime('%Y%m%d')
-        df_종목별잔고['조회시간'] = pd.Timestamp.now().strftime('%H:%M:%S')
         df_종목별잔고 = df_종목별잔고.set_index('종목코드', drop=False)
         dic_종목코드2종목명 = df_종목별잔고['종목명'].to_dict()
 
-        # 종목별잔고 저장
-        df_종목별잔고.to_csv(os.path.join(self.folder_종목잔고, f'df_종목별잔고_{self.s_오늘}.csv'), encoding='cp949', index=False)
+        # 추가 데이터 설정
+        li_종가매수일, li_보유기간 = self._check_보유기간(df_종목별잔고['종목코드'].tolist())
+        df_종목별잔고['종가매수일'] = li_종가매수일
+        df_종목별잔고['보유기간'] = li_보유기간
+        df_종목별잔고['조회일자'] = self.s_오늘
+        df_종목별잔고['조회시간'] = pd.Timestamp.now().strftime('%H:%M:%S')
+
+        # 종목별잔고 저장 - 보유기간 관리를 위해 15:30:00 이전꺼만 저장
+        if pd.Timestamp.now() < pd.Timestamp('15:30:00'):
+            df_종목별잔고.to_csv(os.path.join(self.folder_종목잔고, f'df_종목별잔고_{self.s_오늘}.csv'),
+                                encoding='cp949', index=False)
 
         return dic_계좌잔고, df_종목별잔고, dic_종목코드2종목명
+
+    def _check_보유기간(self, li_대상종목):
+        """ 입력받은 종목에 대해 보유기간 확인 후 리턴 """
+        # 전체일자 확인
+        folder_일봉캐시 = os.path.join(self.folder_work.replace('bbTrader', 'spTraderV2'), '데이터', '차트캐시', '일봉1')
+        li_전체일자 = [re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_일봉캐시) if '.pkl' in 파일]
+        li_전체일자 = sorted(일자 for 일자 in li_전체일자 if 일자 <= self.s_오늘)
+
+        # 종목별잔고 이력 확인
+        li_파일일자 = sorted(re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(self.folder_종목잔고) if '.csv' in 파일)
+        df_잔고이력 = pd.concat([pd.read_csv(os.path.join(self.folder_종목잔고, f'df_종목별잔고_{일자}.csv'),
+                                         encoding='cp949', dtype=str) for 일자 in li_파일일자]).sort_values('조회일자')
+        df_잔고이력['종목코드'] = df_잔고이력['종목코드'].str.zfill(6)
+
+        # 매수일자, 보유기간 확인
+        li_종가매수일, li_보유기간 = list(), list()
+        for s_종목코드 in li_대상종목:
+            # 종목 잔고이력 확인
+            df_잔고이력_종목 = df_잔고이력.loc[df_잔고이력['종목코드'] == s_종목코드].sort_values('조회일자').reset_index(drop=True)
+
+            # 매수일자 확인 - 종가매수 기준
+            s_등장일자 = df_잔고이력_종목['조회일자'].values[0] if not df_잔고이력_종목.empty else self.s_오늘
+            s_종가매수일 = max(일자 for 일자 in li_전체일자 if 일자 < s_등장일자)
+            li_종가매수일.append(s_종가매수일)
+
+            # 보유기간 확인 - 종가매수 기준
+            n_보유기간 = len([일자 for 일자 in li_전체일자 if s_종가매수일 < 일자 <= self.s_오늘]) - 1
+            li_보유기간.append(n_보유기간)
+
+        return li_종가매수일, li_보유기간
 
 
 def run():
