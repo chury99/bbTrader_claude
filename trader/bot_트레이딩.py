@@ -1,5 +1,4 @@
 import os
-import re
 import sys
 # import json
 import time
@@ -38,6 +37,7 @@ class TraderBot:
         self.s_종료시각 = dic_config['종료시각']
         self.n_tr딜레이 = 0.2
         self.s_계좌번호 = str(dic_config['계좌번호'])
+        self.n_목표수익률 = int(dic_config['목표수익률'])
         self.n_손절수익률 = int(dic_config['손절수익률'])
         self.n_익절수익률 = int(dic_config['익절수익률'])
 
@@ -87,8 +87,11 @@ class TraderBot:
             if b_탐색신호:
             # if True:
                 # 매도신호 생성
-                df_매도신호 = self.check_매도신호(li_대상종목=self.df_종목별잔고['종목코드'].tolist())
-                li_매도종목 = df_매도신호.loc[df_매도신호['매도신호'] == True, '종목코드'].to_list() if not df_매도신호.empty else list()
+                # df_매도신호 = self.check_매도신호(li_대상종목=self.df_종목별잔고['종목코드'].tolist())
+                li_보유종목 = self.df_종목별잔고['종목코드'].tolist() if not self.df_종목별잔고.empty else list()
+                df_매도신호 = self.check_매도신호(li_대상종목=li_보유종목)
+                # li_매도종목 = df_매도신호.loc[df_매도신호['매도신호'] == True, '종목코드'].to_list() if not df_매도신호.empty else list()
+                li_매도종목 = df_매도신호.loc[df_매도신호['매도신호'], '종목코드'].to_list() if not df_매도신호.empty else list()
                 b_매도신호 = len(li_매도종목) > 0
 
                 # 매도신호 저장
@@ -102,10 +105,15 @@ class TraderBot:
                     # 데이터 저장
                     path_매도신호 = os.path.join(self.folder_신호탐색, f'df_매도신호_{self.s_오늘}.csv')
                     li_li매도신호 = df_매도신호.values.tolist()
-                    li_li매도신호 = [list(df_매도신호.columns)] + li_li매도신호 if not os.path.exists(path_매도신호) else li_li매도신호
-                    for li_데이터 in li_li매도신호:
-                        li_데이터 = [str(데이터) for 데이터 in li_데이터]
-                        with open(path_매도신호, mode='at', encoding='cp949') as f:
+                    li_li매도신호 = [list(df_매도신호.columns)] + li_li매도신호 if not os.path.exists(path_매도신호)\
+                                    else li_li매도신호
+                    # for li_데이터 in li_li매도신호:
+                    #     li_데이터 = [str(데이터) for 데이터 in li_데이터]
+                    #     with open(path_매도신호, mode='at', encoding='cp949') as f:
+                    #         f.write(f'{','.join(li_데이터)}\n')
+                    with open(path_매도신호, mode='at', encoding='cp949') as f:
+                        for li_데이터 in li_li매도신호:
+                            li_데이터 = [str(데이터) for 데이터 in li_데이터]
                             f.write(f'{','.join(li_데이터)}\n')
 
                 # 로그 기록
@@ -130,7 +138,7 @@ class TraderBot:
                     s_매도사유 = df_매도신호.loc[s_종목코드, '매도사유']
 
                     # 매도주문 요청
-                    n_주문수량 = n_현재잔고
+                    n_주문수량 = int(n_현재잔고 / 2) if s_매도사유 == '목표달성' else n_현재잔고
                     n_주문단가 = self.tool.find_주문단가(n_기준가=n_기준가, n_틱보정=-5)
                     ret = self.api.tr_주식주문(s_구분='매도', s_종목코드=s_종목코드, n_주문수량=n_주문수량, n_주문단가=n_주문단가, s_매매구분='IOC보통')
                     time.sleep(self.n_tr딜레이)
@@ -155,6 +163,15 @@ class TraderBot:
 
     def check_매도신호(self, li_대상종목):
         """ 보유 종목의 매도신호 확인해서 리턴 """
+        # # 보유종목 업데이트 - 실시간 수익률 확인용
+        # self.dic_계좌잔고, self.df_종목별잔고, self.dic_종목코드2종목명 = self._get_종목별잔고()
+        # time.sleep(self.n_tr딜레이)
+
+        # 매도이력 확인
+        dic_전체손익, df_매매일지 = self.api.tr_당일매매일지요청(s_조회일자=self.s_오늘)
+        time.sleep(self.n_tr딜레이)
+        li_당일매도 = df_매매일지.loc[df_매매일지['매도수량'] > 0, '종목코드'].to_list()
+
         # 종목별 데이터 확인
         li_dic매도신호 = list()
         for s_종목코드 in li_대상종목:
@@ -163,9 +180,11 @@ class TraderBot:
             time.sleep(self.n_tr딜레이)
             df_분봉 = df_분봉.loc[df_분봉['일자'] == self.s_오늘].sort_values('시간')
             df_분봉 = df_분봉.loc[df_분봉['시간'] < pd.Timestamp.now().floor('3min').strftime('%H:%M:%S')]
+            # b_분봉존재 = not df_분봉.empty
             if df_분봉.empty: continue
 
             # 추가지표 생성
+            # if b_분봉존재:
             df_분봉['고저'] = df_분봉['고가'] - df_분봉['저가']
             df_분봉['고종가1'] = (df_분봉['고가'] - df_분봉['종가'].shift(1)).abs()
             df_분봉['저종가1'] = (df_분봉['저가'] - df_분봉['종가'].shift(1)).abs()
@@ -183,7 +202,16 @@ class TraderBot:
             n_저가3봉 = df_분봉['저가'].values[-4:-1].min() if len(df_분봉) >= 4 else df_분봉['저가'].min()
             n_수익률 = (n_종가1 / n_매수가 - 1) * 100 - 0.2
             n_고가수익률 = (n_당일고가 / n_매수가 - 1) * 100 - 0.2
+            # n_ATR14 = df_분봉['ATR14'].values[-1] if b_분봉존재 and not pd.isna(df_분봉['ATR14'].values[-1]) else None
             n_ATR14 = df_분봉['ATR14'].values[-1] if not pd.isna(df_분봉['ATR14'].values[-1]) else None
+
+            # 매도신호 확인 - 목표수익률 달성 시 절반 매도  ====> tr_당일매매일지요청 사용해서 매매이력 있는지 확인
+            # n_실시간수익률 = float(self.df_종목별잔고.loc[self.df_종목별잔고['종목코드'] == s_종목코드, '손익률'].values[0])
+            # b_고가이력 = n_고가수익률 > self.n_목표수익률
+            # b_목표달성 = n_실시간수익률 > self.n_목표수익률 and (not b_고가이력 or not b_분봉존재)
+            # b_목표달성 = n_수익률 > self.n_목표수익률 and (not b_고가이력 or not b_분봉존재)
+            b_매도이력 = s_종목코드 in li_당일매도
+            b_목표달성 = n_수익률 > self.n_목표수익률 and not b_매도이력
 
             # 매도신호 확인 - 익절
             n_익절기준가 = n_당일고가 - 2 * n_ATR14 if n_ATR14 is not None else 0
@@ -195,13 +223,13 @@ class TraderBot:
             b_손절 = (n_종가1 < n_손절기준가) and (s_시간1 > '09:10:00') and (n_비디1 < 0)
 
             # 결과 정리
-            b_매도신호 = b_익절 or b_손절
-            s_매도사유 = '익절' if b_익절 else '손절' if b_손절 else '없음'
-            dic_매도신호 = dict(종목코드=s_종목코드, 종목명=s_종목명, 매도신호=b_매도신호, 매도사유=s_매도사유, 익절신호=b_익절, 손절신호=b_손절)
-            dic_매도신호.update(매수가=n_매수가, 종가1=n_종가1,
+            b_매도신호 = b_목표달성 or b_익절 or b_손절
+            s_매도사유 = '목표달성' if b_목표달성 else '익절' if b_익절 else '손절' if b_손절 else '-'
+            dic_매도신호 = dict(종목코드=s_종목코드, 종목명=s_종목명, 매도신호=b_매도신호, 매도사유=s_매도사유)
+            dic_매도신호.update(매수가=n_매수가, 종가1=n_종가1, 매도이력=b_매도이력,
                             수익률=n_수익률, 고가수익률=n_고가수익률, 익절기준가=n_익절기준가, 손절기준가=n_손절기준가,
                             당일고가=n_당일고가, 저가3봉=n_저가3봉, ATR14=n_ATR14,
-                            익절수익률=self.n_익절수익률, 손절수익률=self.n_손절수익률)
+                            목표수익률=self.n_목표수익률, 익절수익률=self.n_익절수익률, 손절수익률=self.n_손절수익률)
             li_dic매도신호.append(dic_매도신호)
 
         # df 정리
@@ -214,6 +242,8 @@ class TraderBot:
         """ 종목별 잔고 조회하여 df 리턴 """
         # 체결잔고 조회
         dic_계좌잔고, df_종목별잔고 = self.api.tr_체결잔고요청()
+        if df_종목별잔고.empty:
+            return dic_계좌잔고, df_종목별잔고, dict()
 
         # 데이터 정리
         df_종목별잔고['종목코드'] = df_종목별잔고['종목코드'].str.replace('A', '')
@@ -240,9 +270,11 @@ class TraderBot:
         folder_일봉캐시 = os.path.join(self.folder_work.replace('bbTrader', 'spTraderV2'), '데이터', '차트캐시', '일봉1')
         li_전체일자 = [re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_일봉캐시) if '.pkl' in 파일]
         li_전체일자 = sorted(일자 for 일자 in li_전체일자 if 일자 <= self.s_오늘)
+        s_7일전 = min(li_전체일자[-7:]) if len(li_전체일자) > 0 else '0'
 
         # 종목별잔고 이력 확인
-        li_파일일자 = sorted(re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(self.folder_종목잔고) if '.csv' in 파일)
+        li_파일일자 = [re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(self.folder_종목잔고) if '.csv' in 파일]
+        li_파일일자 = sorted(일자 for 일자 in li_파일일자 if 일자 >= s_7일전)
         df_잔고이력 = pd.concat([pd.read_csv(os.path.join(self.folder_종목잔고, f'df_종목별잔고_{일자}.csv'),
                                          encoding='cp949', dtype=str) for 일자 in li_파일일자]).sort_values('조회일자')
         df_잔고이력['종목코드'] = df_잔고이력['종목코드'].str.zfill(6)
