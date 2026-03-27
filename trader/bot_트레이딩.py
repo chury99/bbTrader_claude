@@ -140,12 +140,13 @@ class TraderBot:
                     # 매도주문 요청
                     n_주문수량 = int(n_현재잔고 / 2) if s_매도사유 == '목표달성' else n_현재잔고
                     n_주문단가 = self.tool.find_주문단가(n_기준가=n_기준가, n_틱보정=-5)
-                    ret = self.api.tr_주식주문(s_구분='매도', s_종목코드=s_종목코드, n_주문수량=n_주문수량, n_주문단가=n_주문단가, s_매매구분='IOC보통')
+                    ret_주문 = self.api.tr_주식주문(s_구분='매도', s_종목코드=s_종목코드, n_주문수량=n_주문수량, n_주문단가=n_주문단가, s_매매구분='IOC보통')
                     time.sleep(self.n_tr딜레이)
 
                     # 로그 기록
-                    self.make_로그(f'매도주문 완료\n'
-                                 f' - {s_매도사유} | {s_종목명}({s_종목코드}) {n_매수가:,.0f} -> {n_주문단가:,.0f}원 {n_주문수량:,.0f}주')
+                    self.make_로그(f'매도주문\n'
+                                 f' - {s_매도사유} | {s_종목명}({s_종목코드}) {n_매수가:,.0f} -> {n_주문단가:,.0f}원 {n_주문수량:,.0f}주\n'
+                                 f'{ret_주문}')
 
                 # 매도신호 초기화
                 b_매도신호 = False
@@ -170,7 +171,7 @@ class TraderBot:
         # 매도이력 확인
         dic_전체손익, df_매매일지 = self.api.tr_당일매매일지요청(s_조회일자=self.s_오늘)
         time.sleep(self.n_tr딜레이)
-        li_당일매도 = df_매매일지.loc[df_매매일지['매도수량'] > 0, '종목코드'].to_list()
+        li_당일매도 = df_매매일지.loc[df_매매일지['매도수량'] > 0, '종목코드'].to_list() if not df_매매일지.empty else list()
 
         # 종목별 데이터 확인
         li_dic매도신호 = list()
@@ -215,8 +216,10 @@ class TraderBot:
 
             # 매도신호 확인 - 익절
             n_익절기준가 = n_당일고가 - 2 * n_ATR14 if n_ATR14 is not None else 0
+            b_고가터치 = n_고가수익률 > self.n_익절수익률
             b_고가이탈 = n_종가1 < n_익절기준가 if n_ATR14 is not None else n_종가1 < n_저가3봉
-            b_익절 = (n_고가수익률 > self.n_익절수익률) and b_고가이탈 and (n_비디1 < 0)
+            # b_익절 = (n_고가수익률 > self.n_익절수익률) and b_고가이탈 and (n_비디1 < 0)
+            b_익절 = b_고가터치 and b_고가이탈 and (n_비디1 < 0)
 
             # 매도신호 확인 - 손절
             n_손절기준가 = n_매수가 * (100 - self.n_손절수익률 - 0.2) / 100
@@ -226,7 +229,7 @@ class TraderBot:
             b_매도신호 = b_목표달성 or b_익절 or b_손절
             s_매도사유 = '목표달성' if b_목표달성 else '익절' if b_익절 else '손절' if b_손절 else '-'
             dic_매도신호 = dict(종목코드=s_종목코드, 종목명=s_종목명, 매도신호=b_매도신호, 매도사유=s_매도사유)
-            dic_매도신호.update(매수가=n_매수가, 종가1=n_종가1, 매도이력=b_매도이력,
+            dic_매도신호.update(매수가=n_매수가, 종가1=n_종가1, 매도이력=b_매도이력, 고가터치=b_고가터치,
                             수익률=n_수익률, 고가수익률=n_고가수익률, 익절기준가=n_익절기준가, 손절기준가=n_손절기준가,
                             당일고가=n_당일고가, 저가3봉=n_저가3봉, ATR14=n_ATR14,
                             목표수익률=self.n_목표수익률, 익절수익률=self.n_익절수익률, 손절수익률=self.n_손절수익률)
@@ -291,7 +294,7 @@ class TraderBot:
             li_종가매수일.append(s_종가매수일)
 
             # 보유기간 확인 - 종가매수 기준
-            n_보유기간 = len([일자 for 일자 in li_전체일자 if s_종가매수일 < 일자 <= self.s_오늘]) - 1
+            n_보유기간 = len([일자 for 일자 in li_전체일자 if s_종가매수일 < 일자 < self.s_오늘])
             li_보유기간.append(n_보유기간)
 
         return li_종가매수일, li_보유기간
