@@ -262,7 +262,7 @@ class TraderBot:
         # 종목정보 업데이트
         self.dic_계좌잔고, self.df_종목별잔고, self.dic_종목코드2종목명 = self._get_종목별잔고()
         time.sleep(self.n_tr딜레이)
-        dic_실시간수익률 = self.df_종목별잔고.set_index('종목코드')['손익률'].to_dict()
+        dic_실시간수익률 = self.df_종목별잔고.set_index('종목코드')['손익률'].to_dict() if len(self.df_종목별잔고) > 0 else dict()
 
         # 매도이력 확인
         dic_전체손익, df_매매일지 = self.api.tr_당일매매일지요청(s_조회일자=self.s_오늘)
@@ -274,7 +274,8 @@ class TraderBot:
         for s_종목코드 in li_대상종목:
             # 공통 데이터 확인
             s_현재시간 = pd.Timestamp.now().strftime('%H:%M:%S')
-            s_종목명 = self.dic_종목코드2종목명[s_종목코드]
+            # s_종목명 = self.dic_종목코드2종목명[s_종목코드]
+            s_종목명 = self.dic_종목코드2종목명.get(s_종목코드, None)
             n_매수가 = self.df_종목별잔고.loc[s_종목코드, '매입단가']
             n_일봉고가 = self.dic_일봉고가.get(s_종목코드, 0)
             n_일봉고가수익률 = (n_일봉고가 / n_매수가 - 1) * 100 - 0.2
