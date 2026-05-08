@@ -1,16 +1,15 @@
 import os
 import sys
-# import json
 import time
 
 import pandas as pd
 import multiprocessing as mp
 
-import trader, ut
+import analyzer, trader, ut
 
 
 # noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode
-class LauncherTrader:
+class LauncherAnalyzer:
     # noinspection PyUnresolvedReferences
     def __init__(self):
         # config 읽어 오기
@@ -19,7 +18,7 @@ class LauncherTrader:
         dic_config = ut.도구manager.ToolManager().config로딩()
 
         # 로그 설정
-        log = ut.로그maker.LogMaker(s_파일명=self.s_파일명, s_로그명='로그이름_trader')
+        log = ut.로그maker.LogMaker(s_파일명=self.s_파일명, s_로그명='로그이름_analyzer')
         sys.stderr = ut.로그maker.StderrHook(path_에러로그=log.path_에러)
         self.make_로그 = log.make_로그
 
@@ -28,7 +27,6 @@ class LauncherTrader:
 
         # 기준정보 정의
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
-        self.s_종료시각 = dic_config['종료시각']
 
         # 카카오 API 연결
         sys.path.append(dic_config['folder_kakao'])
@@ -38,49 +36,45 @@ class LauncherTrader:
         # 로그 기록
         self.make_로그(f'구동 시작')
 
-    def run_트레이더(self):
-        """ 트레이딩을 위한 bot 실행 """
-        # 프로세스 생성 및 실행
-        dic_봇정보 = dict(s_타겟=trader.bot_트레이딩.run, s_네임='봉봉trader')
-        p_봇 = mp.Process(target=dic_봇정보['s_타겟'], name=dic_봇정보['s_네임'])
-        p_봇.start()
+    def run_일봉수집(self):
+        """ 일봉수집 모듈 실행 - 실시간 모듈 종료 후 바로 진행 """
+        # 프로세스 정의
+        dic_봇정보 = dict(s_타겟=analyzer.bot_일봉수집.run, s_네임='bot_일봉수집')
 
-        # 감시 루프 구동
-        b_동작중 = True
+        # 프로세스 실행 - 비정상 종료 시 재실행
         dt_에러발생 = pd.Timestamp.now()
         while True:
-            # 종료시간 이후라면 프로세스 종료
-            if pd.Timestamp.now() > pd.Timestamp(self.s_종료시각):
-                ret = p_봇.terminate() if p_봇.is_alive() else None
-                b_동작중 = False
+            # 프로세스 구동
+            p_봇 = mp.Process(target=dic_봇정보['s_타겟'], name=dic_봇정보['s_네임'])
+            p_봇.start()
+            p_봇.join()
 
-            # 종료시간 내 비정상 종료 시 재시작
-            elif not p_봇.is_alive():
-                # 오류 발생 시 재실행
-                if p_봇.exitcode == 1:
-                    # 연속 재실행 검사
-                    if pd.Timestamp.now() - dt_에러발생 < pd.Timedelta(seconds=3):
-                        b_동작중 = False
-                        continue
-                    # 모듈 재실행
-                    self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=f'{p_봇.name} 모듈 재시작')
-                    p_봇 = mp.Process(target=dic_봇정보['s_타겟'], name=dic_봇정보['s_네임'])
-                    p_봇.start()
-                    dt_에러발생 = pd.Timestamp.now()
-
-                # 이외 경우에는 오류 알림
-                else:
-                    self.send_카톡_오류발생(s_프로세스명=p_봇.name, n_오류코드=p_봇.exitcode)
-                    b_동작중 = False
-
-            # 동작 종료 시 감시 루프 해제
-            if not b_동작중:
+            # 종상 종료 시 종료
+            if p_봇.exitcode <= 0:
                 break
 
-            # 확인 주기 설정
-            time.sleep(0.1)
+            # 비정상 종료 처리
+            else:
+                time.sleep(1)
+                if pd.Timestamp.now() - dt_에러발생 < pd.Timedelta(seconds=3):
+                    break
+                else:
+                    self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=f'{p_봇.name} 모듈 재시작')
+                    dt_에러발생 = pd.Timestamp.now()
 
-        # 프로세스 종료 처리
+        # 로그 기록
+        if p_봇.exitcode <= 0:
+            self.make_로그(f'{p_봇.name} 구동 완료')
+        else:
+            self.send_카톡_오류발생(s_프로세스명=p_봇.name, n_오류코드=p_봇.exitcode)
+
+    def run_종목추천(self):
+        """ 종목추천 모듈 실행 """
+        # 프로세스 정의
+        p_봇 = mp.Process(target=analyzer.bot_종목추천.run, name='bot_종목추천')
+
+        # 프로세스 실행 및 종료 대기
+        p_봇.start()
         p_봇.join()
 
         # 로그 기록
@@ -116,8 +110,9 @@ class LauncherTrader:
 
 def run():
     """ 실행 함수 """
-    l = LauncherTrader()
-    l.run_트레이더()
+    l = LauncherAnalyzer()
+    l.run_일봉수집()
+    l.run_종목추천()
     l.ut_파일정리()
 
 
