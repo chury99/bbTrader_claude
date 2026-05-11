@@ -1,5 +1,4 @@
 import os
-import json
 
 import ut
 
@@ -22,14 +21,12 @@ class FolderManager:
 
         # 매수매도 폴더 정의
         folder_매수매도 = os.path.join(folder_work, '매수매도')
-        # self.dic_폴더정보['매수매도'] = os.path.join(folder_매수매도)
         self.dic_폴더정보.update(매수매도=os.path.join(folder_매수매도))
         self.dic_폴더정보['매수매도|종목잔고'] = os.path.join(folder_매수매도, '종목잔고_tr')
         self.dic_폴더정보['매수매도|신호탐색'] = os.path.join(folder_매수매도, '신호탐색')
 
         # 데이터 폴더 정의
         folder_데이터 = os.path.join(folder_work, '데이터')
-        # self.dic_폴더정보['데이터'] = os.path.join(folder_데이터)
         self.dic_폴더정보.update(데이터=os.path.join(folder_데이터))
         self.dic_폴더정보['데이터|대상종목'] = os.path.join(folder_데이터, '대상종목')
         self.dic_폴더정보['데이터|조회순위'] = os.path.join(folder_데이터, '조회순위')
@@ -37,9 +34,7 @@ class FolderManager:
 
         # 분석 폴더 정의
         folder_분석 = os.path.join(folder_work, '분석')
-        # self.dic_폴더정보['분석'] = os.path.join(folder_분석)
         self.dic_폴더정보.update(분석=os.path.join(folder_분석))
-        # self.dic_폴더정보['분석|종목추천'] = os.path.join(folder_분석, '종목추천')
 
 
 if __name__ == '__main__':

@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import pandas as pd
 
 import ut.도구manager
@@ -13,7 +12,6 @@ class LogMaker:
         self.folder_베이스 = os.path.dirname(os.path.abspath(__file__))
         self.folder_프로젝트 = os.path.dirname(self.folder_베이스)
         self.s_파일명 = os.path.basename(__file__).replace('.py', '')
-        # dic_config = json.load(open(os.path.join(self.folder_프로젝트, 'config.json'), mode='rt', encoding='utf-8'))
         dic_config = ut.도구manager.ToolManager().config로딩()
 
         # 기준정보 정의

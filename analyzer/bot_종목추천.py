@@ -5,12 +5,11 @@ import time
 import re
 
 import pandas as pd
-# import matplotlib.pyplot as plt
 import dataframe_image as dfi
 from tqdm import tqdm
 from google import genai
 
-import analyzer, trader, ut
+import ut
 
 
 # noinspection NonAsciiCharacters,SpellCheckingInspection,PyPep8Naming
@@ -62,8 +61,6 @@ class AnalyzerBot:
         # 로그 기록
         self.make_로그(f'구동 시작')
 
-    # 데이터 변환 => 종목 선정 => 카톡 송부
-
     def make_지표생성(self):
         """ 일봉 데이터 기반으로 지표 생성 후 저장 """
         # 기준정보 정의
@@ -88,7 +85,6 @@ class AnalyzerBot:
 
             # 추가 데이터 불러오기
             df_분석대상 = pd.read_pickle(os.path.join(self.folder_대상종목, f'df_대상종목_{s_일자}.pkl'))
-            # dic_코드2종목명 = df_대상종목.set_index('종목코드')['종목명'].to_dict()
 
             # 대상종목 선정
             li_대상종목 = sorted(종목 for 종목 in dic_일봉차트.keys() if 종목 in df_분석대상['종목코드'].values)
@@ -151,12 +147,11 @@ class AnalyzerBot:
                 n_당일60 = df_일봉.loc[dt_당일, '종가ma60']
                 n_당일120 = df_일봉.loc[dt_당일, '종가ma120']
                 n_당일바디 = (n_당일종가 - n_당일시가) / n_전일종가 * 100
-                # li_돌파신호 = df_일봉['돌파신호'].values[-5:].tolist()
 
                 # 선정조건 확인
                 b_정배열 = n_당일종가 > n_당일60 > n_당일120
                 b_돌파여부 = True in df_일봉['돌파신호'].values[-5:]
-                b_눌림여부 = -2 < n_당일바디 < 2
+                b_눌림여부 = -2 < n_당일바디 < 5
 
                 # 결과 생성
                 dic_종목선정 = df_일봉.loc[dt_당일].to_dict()
@@ -175,6 +170,7 @@ class AnalyzerBot:
             n_선정종목수 = len(df_종목선정.loc[df_종목선정['종목선정']])
             self.make_로그(f'{s_일자} - {n_선정종목수:,.0f}/{n_전체종목수:,.0f}종목')
 
+    # noinspection PyUnboundLocalVariable,RegExpRedundantEscape
     def make_우선순위(self):
         """ 선정된 추천종목 기준으로 확률정보 생성하여 우선순위 선정 """
         # 기준정보 정의
@@ -207,9 +203,9 @@ class AnalyzerBot:
             s_모델 = 'gemini-3-flash-preview'
             # s_모델 = 'gemini-3.1-flash-lite-preview'
 
-            # 상승확률 계산 - 7회 반복
+            # 상승확률 계산 - 반복 진행
             li_dic응답 = list()
-            for i in tqdm(range(7), desc=f'AI분석({s_모델})-{s_일자}', file=sys.stdout):
+            for _ in tqdm(range(10), desc=f'AI분석({s_모델})-{s_일자}', file=sys.stdout):
                 # 제미나이 cli 적용
                 s_질문 = ('너는 일 단위의 단기 매매를 전문으로 하는 주식 퀀트 분석 전문가야.\n'
                         '투자의 기본 틀은 +10% 이상 시 익절, -3% 이하 시 손절하는 방식이야.\n'
@@ -231,7 +227,7 @@ class AnalyzerBot:
                 time.sleep(10)
 
                 # 제미나이 요청 - 서버 과부하 시 3회 반복
-                for i in range(3):
+                for _ in range(3):
                     try:
                         res = client.models.generate_content(model=s_모델, contents=s_질문)
                         break
@@ -245,11 +241,11 @@ class AnalyzerBot:
                 dic_응답 = json.loads(s_응답내용)
                 li_dic응답.append(dic_응답)
 
-            # 최종 확률 산정 - 7회 중 best, worst 제외한 5개 값의 평균
+            # 최종 확률 산정 - 10회 중 best, worst 각 2개씩 제외한 6개 값의 평균
             dic_상승확률 = li_dic응답[-1]
             for s_종목코드 in dic_상승확률.keys():
                 li_확률 = [int(dic_응답.get(s_종목코드, dict()).get('상승확률', 0)) for dic_응답 in li_dic응답]
-                li_확률_대상 = sorted(li_확률)[1: -1]
+                li_확률_대상 = sorted(li_확률)[2: -2]
                 dic_상승확률[s_종목코드]['상승확률'] = int(sum(li_확률_대상) / len(li_확률_대상)) if len(li_확률_대상) > 0 else 0
 
             # 결과 정리
@@ -323,11 +319,10 @@ class AnalyzerBot:
 # noinspection PyPep8Naming,NonAsciiCharacters,SpellCheckingInspection
 def timer_실행지연(s_실행시간):
     dt_실행시각 = pd.Timestamp(s_실행시간)
-    dt_현재시각 = pd.Timestamp.now()
-    while dt_현재시각 < dt_실행시각:
+    while pd.Timestamp.now() < dt_실행시각:
         s_잔여시간 = str(dt_실행시각 - pd.Timestamp.now()).split()[-1].split('.')[0]
-        s_화면출력 = (f'\r[{dt_현재시각.strftime('%H:%M:%S')}]'
-                  f' 종목알림 예정({dt_실행시각.strftime('%H:%M:%S')}) - {s_잔여시간} 후 실행')
+        s_화면출력 = (f'\r[{pd.Timestamp.now().strftime('%H:%M:%S')}]'
+                  f' 종목알림 예정({s_실행시간}) - {s_잔여시간} 후 실행')
         print(s_화면출력, end='', flush=True)
         time.sleep(1)
 
@@ -338,7 +333,7 @@ def run():
     a.make_지표생성()
     a.pick_종목선정()
     a.make_우선순위()
-    timer_실행지연(s_실행시간='15:55:00')
+    timer_실행지연(s_실행시간='16:00:00')
     a.send_종목알림()
 
 

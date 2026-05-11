@@ -7,7 +7,6 @@ import shutil
 import pandas as pd
 import paramiko
 
-# import ut.도구manager, ut.로그maker, ut.폴더manager
 import ut
 
 
@@ -18,7 +17,6 @@ class FileManager:
         self.folder_베이스 = os.path.dirname(os.path.abspath(__file__))
         self.folder_프로젝트 = os.path.dirname(self.folder_베이스)
         self.s_파일명 = os.path.basename(__file__).replace('.py', '')
-        # dic_config = json.load(open(os.path.join(self.folder_프로젝트, 'config.json'), mode='rt', encoding='utf-8'))
         dic_config = ut.도구manager.ToolManager().config로딩()
 
         # 로그 설정
@@ -54,7 +52,7 @@ class FileManager:
         # 폴더 동기화
         li_업데이트파일 = list()
         for s_메인폴더, s_보조폴더 in dic_대상폴더.items():
-            ret = self._sync_폴더(dic_대상머신=dic_대상머신, s_원본폴더=s_메인폴더, s_타겟폴더=s_보조폴더, s_구분='업데이트')
+            ret = self._sync_폴더(dic_대상머신=dic_대상머신, s_원본폴더=s_메인폴더, s_타겟폴더=s_보조폴더)
             li_업데이트파일 = li_업데이트파일 + ret
 
         # 로그 기록
@@ -71,7 +69,7 @@ class FileManager:
         # 폴더 동기화
         li_업데이트파일 = list()
         for s_메인폴더, s_보조폴더 in dic_대상폴더.items():
-            ret = self._sync_폴더(dic_대상머신=dic_대상머신, s_원본폴더=s_메인폴더, s_타겟폴더=s_보조폴더, s_구분='업데이트')
+            ret = self._sync_폴더(dic_대상머신=dic_대상머신, s_원본폴더=s_메인폴더, s_타겟폴더=s_보조폴더)
             li_업데이트파일 = li_업데이트파일 + ret
 
         # 로그 기록
@@ -80,10 +78,6 @@ class FileManager:
     def rotate_보관파일(self):
         """ 로컬머신 대상으로 보관기간 경과된 파일 삭제 """
         # 기준정보 정의
-        # dic_보관기간 = dict(로그=self.dic_config['파일보관기간(일)_log'], 분석=self.dic_config['파일보관기간(일)_analyzer'],
-        #             데이터=self.dic_config['파일보관기간(일)_collector'], 매수매도=self.dic_config['파일보관기간(일)_trader'])
-        # li_제외폴더 = self._find_하위폴더(s_기준폴더='매수매도|주문체결', b_전체폴더명=True) +\
-        #             self._find_하위폴더(s_기준폴더='데이터|차트수집', b_전체폴더명=True)
         dic_보관기간 = dict(매수매도=self.dic_config['파일보관기간(일)_trader'])
         li_제외폴더 = list()
 
@@ -123,15 +117,13 @@ class FileManager:
             self.make_로그(f'{s_메인폴더} 파일 삭제 완료'
                          f' - {s_보관기간}일 - {s_기준일자} 기준 - {len(li_삭제대상):,.0f}개 파일 - {s_삭제용량}')
 
-
+    # noinspection PyUnresolvedReferences
     def check_잔여공간(self):
         """ 로컬에 남아있는 공간 확인 """
         # 용량 확인
         n_전체, n_사용, n_잔여 = shutil.disk_usage(self.folder_work)
 
         # 용량 환산
-        n_전체_GB = n_전체 / (1024 ** 3)
-        n_사용_GB = n_사용 / (1024 ** 3)
         n_잔여_GB = n_잔여 / (1024 ** 3)
         n_잔여비율 = n_잔여 / n_전체 * 100
 
@@ -139,7 +131,6 @@ class FileManager:
         if n_잔여_GB < 20:
             # 카카오 API 연결
             sys.path.append(self.dic_config['folder_kakao'])
-            # noinspection PyUnresolvedReferences
             import API_kakao
             kakao = API_kakao.KakaoAPI()
 
@@ -171,7 +162,7 @@ class FileManager:
 
         return li_하위폴더
 
-    def _sync_폴더(self, dic_대상머신, s_원본폴더, s_타겟폴더, s_구분='업데이트'):
+    def _sync_폴더(self, dic_대상머신, s_원본폴더, s_타겟폴더):
         """ 로컬 파일을 서버에 업데이트 """
         # 기준정보 정의
         dic_기준폴더 = dict(로컬머신=self.folder_work,

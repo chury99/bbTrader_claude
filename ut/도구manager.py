@@ -6,7 +6,6 @@ import pandas as pd
 import sqlite3
 import json
 import paramiko
-from pandas.core.methods.selectn import SelectNSeries
 
 
 # noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode
@@ -84,13 +83,12 @@ class ToolManager:
             con.close()
             return None
 
-
+    # noinspection PyUnusedLocal
     def sftp_동기화_파일명(self, folder_로컬, folder_서버, s_모드, s_기준일=None):
         """ sftp 서버 접속 후 파일명 기준으로 동기화 """
         # 서버정보 정의
         dic_서버정보 = json.load(open(os.path.join(self.folder_프로젝트, 'server_info.json'), mode='rt', encoding='utf-8'))
         dic_서버접속 = dic_서버정보['sftp']
-        dic_서버폴더 = dic_서버정보['folder']
 
         # 서버 접속
         li_동기화파일명 = list()
@@ -135,7 +133,7 @@ class ToolManager:
 
         return li_동기화파일명
 
-
+    # noinspection PyUnusedLocal
     def sftp폴더동기화(self, folder_로컬, folder_서버, s_모드, s_시작일자=None):
         """ sftp 서버 접속 후 해당 폴더 동기화 - 하위폴더 포함, 파일 수정시간 기준 """
         # 서버정보 정의
@@ -220,6 +218,7 @@ class ToolManager:
 
         return li_동기화파일명
 
+    # noinspection PyTypeChecker,PyUnusedLocal
     def sftp파일업로드(self, folder_로컬, folder_서버, s_파일명, n_파일보관일수):
         """ sftp 서버 접속 후 해당 파일 업로드 """
         # 서버정보 정의
@@ -286,14 +285,6 @@ class ToolManager:
             + list(range(200 * 1000, 500 * 1000, 500))
             + list(range(500 * 1000, max(int(n_기준가 * 1.4), 501 * 1000), 1000))
         )
-          # + list(range(500 * 1000, 3000 * 1000, 1000)))
-
-        # # 50만원 이상 구간 추가
-        # li_호가단위_추가 = list()
-        # if n_현재가 >= 500000:
-        #     for n_호가 in range(500000, n_현재가 + 10 * 1000, 1000):
-        #         li_호가단위_추가.append(n_호가)
-        # li_호가단위 = sorted(li_호가단위 + list(range(500000, n_기준가 + 10 * 1000, 1000))) if n_기준가 >= 500000 else li_호가단위
 
         # 주문단가 산출
         n_주문단가 = None

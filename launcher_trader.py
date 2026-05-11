@@ -9,7 +9,7 @@ import multiprocessing as mp
 import trader, ut
 
 
-# noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode
+# noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode,PyUnusedLocal
 class LauncherTrader:
     # noinspection PyUnresolvedReferences
     def __init__(self):
@@ -24,7 +24,7 @@ class LauncherTrader:
         self.make_로그 = log.make_로그
 
         # 폴더 정의
-        dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
+        # dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
 
         # 기준정보 정의
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
@@ -89,21 +89,6 @@ class LauncherTrader:
         else:
             self.send_카톡_오류발생(s_프로세스명=p_봇.name, n_오류코드=p_봇.exitcode)
 
-    def ut_파일정리(self):
-        """ 파일manager 모듈 실행 """
-        # 프로세스 정의
-        p_봇 = mp.Process(target=ut.파일manager.run, name='bot_파일정리')
-
-        # 프로세스 실행 및 종료 대기
-        p_봇.start()
-        p_봇.join()
-
-        # 로그 기록
-        if p_봇.exitcode <= 0:
-            self.make_로그(f'{p_봇.name} 구동 완료')
-        else:
-            self.send_카톡_오류발생(s_프로세스명=p_봇.name, n_오류코드=p_봇.exitcode)
-
     def send_카톡_오류발생(self, s_프로세스명, n_오류코드):
         """ 실행 오류 발생 시 프로세스명 포함하여 카톡 메세지 송부 """
         # 메세지 정의
@@ -118,7 +103,6 @@ def run():
     """ 실행 함수 """
     l = LauncherTrader()
     l.run_트레이더()
-    l.ut_파일정리()
 
 
 if __name__ == '__main__':

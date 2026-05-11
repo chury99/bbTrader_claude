@@ -5,7 +5,7 @@ import time
 import pandas as pd
 import multiprocessing as mp
 
-import analyzer, trader, ut
+import analyzer, ut
 
 
 # noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode
@@ -23,7 +23,7 @@ class LauncherAnalyzer:
         self.make_로그 = log.make_로그
 
         # 폴더 정의
-        dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
+        # dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
 
         # 기준정보 정의
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
