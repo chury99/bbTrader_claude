@@ -35,6 +35,7 @@ class FolderManager:
         # 분석 폴더 정의
         folder_분석 = os.path.join(folder_work, '분석')
         self.dic_폴더정보.update(분석=os.path.join(folder_분석))
+        self.dic_폴더정보['분석|백테스팅'] = os.path.join(folder_분석, '백테스팅')
 
 
 if __name__ == '__main__':

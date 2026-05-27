@@ -264,6 +264,60 @@ class AnalyzerBot:
     def send_종목알림(self):
         """ 선정된 추천종목을 서버에 저장 및 카톡 알림 """
         # 기준정보 정의
+        folder_소스 = os.path.join(self.folder_분석, '20_종목선정')
+        file_소스 = f'df_종목선정'
+        folder_타겟 = os.path.join(self.folder_분석, '40_종목알림')
+        file_타겟 = f'종목알림'
+        os.makedirs(folder_타겟, exist_ok=True)
+
+        # 대상일자 확인
+        li_전체일자 = sorted(re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_소스)
+                         if file_소스 in 파일 and '.pkl' in 파일)
+        li_완료일자 = [re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_타겟)
+                   if file_타겟 in 파일 and '.png' in 파일]
+        li_대상일자 = [일자 for 일자 in li_전체일자 if 일자 not in li_완료일자]
+
+        # 일자별 매수매도 정보 생성
+        for s_일자 in li_대상일자:
+            # 소스파일 불러오기 - 조회순위 종목 기준의 일봉차트 데이터
+            df_종목선정 = pd.read_pickle(os.path.join(folder_소스, f'{file_소스}_{s_일자}.pkl'))
+
+            # 종목알림 선정
+            df_종목알림 = df_종목선정.loc[df_종목선정['종목선정'], ['일자', '종목코드', '종목명']].copy().reset_index(drop=True)
+
+            # df를 이미지로 저장
+            df_스타일 = (df_종목알림.style
+                      .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+                      .set_properties(subset=['종목명'], **{'text-align': 'left'})
+                      )
+            s_파일명 = f'{file_타겟}_{s_일자}.png'
+            dfi.export(df_스타일, os.path.join(folder_타겟, s_파일명), dpi=300)
+
+            # 서버에 저장
+            s_서버폴더 = '종목추천'
+            li_복사한파일명, li_삭제한파일명, dic_서버정보 = self.tool.sftp파일업로드(
+                            folder_로컬=folder_타겟, folder_서버=s_서버폴더, s_파일명=s_파일명, n_파일보관일수=self.n_서버파일보관일수)
+
+            # 메세지 송부
+            if s_일자 == li_대상일자[-1]:
+                # 메세지 생성
+                s_메세지 = f'## [{s_일자}] 추천종목 {len(df_종목알림)}개 ##'
+                for idx in df_종목알림.index:
+                    s_종목명 = df_종목알림.loc[idx, '종목명']
+                    s_종목코드 = df_종목알림.loc[idx, '종목코드']
+                    s_메세지 = s_메세지 + f'\n  {s_종목명}({s_종목코드})'
+
+                # 카톡 송부
+                s_url주소 = f'http://{dic_서버정보['sftp']['hostname']}/kakao/{s_서버폴더}'
+                self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=s_메세지,
+                                    s_버튼이름=f'추천종목 사유', s_연결url=f'{s_url주소}/{s_파일명}')
+
+            # 로그 기록
+            self.make_로그(f'{s_일자} - {len(df_종목알림):,.0f}종목')
+
+    def send_종목알림with제미나이(self):
+        """ 선정된 추천종목을 서버에 저장 및 카톡 알림 """
+        # 기준정보 정의
         folder_소스 = os.path.join(self.folder_분석, '30_우선순위')
         file_소스 = f'df_우선순위'
         folder_타겟 = os.path.join(self.folder_분석, '40_종목알림')
@@ -332,8 +386,9 @@ def run():
     a = AnalyzerBot()
     a.make_지표생성()
     a.pick_종목선정()
-    a.make_우선순위()
+    # a.make_우선순위()
     timer_실행지연(s_실행시간='16:00:00')
+    # a.send_종목알림with제미나이()
     a.send_종목알림()
 
 

@@ -219,16 +219,23 @@ class TraderBot:
             n_수익률1 = (n_종가1 / n_매수가 - 1) * 100 - 0.2
             n_고가수익률 = (n_당일고가 / n_매수가 - 1) * 100 - 0.2
             n_ATR14 = df_분봉['ATR14'].values[-1] if not pd.isna(df_분봉['ATR14'].values[-1]) else None
+            b_매도이력 = s_종목코드 in li_당일매도
 
             # 매도신호 확인 - 목표수익률 달성 시 절반 매도  ====> tr_당일매매일지요청 사용해서 매매이력 있는지 확인
-            b_매도이력 = s_종목코드 in li_당일매도
+            # b_목표달성 = False
+            # if not b_매도이력:
             b_고가터치 = (n_고가수익률 > self.n_익절수익률) or (n_당일고가 >= n_일봉고가 and n_일봉고가수익률 > 5)
-            b_목표달성 = b_고가터치 and not b_매도이력
+            # b_목표달성 = b_고가터치 and not b_매도이력
+            b_목표달성 = b_고가터치 if not b_매도이력 else False
 
             # 매도신호 확인 - 익절
+            # b_익절 = False
+            # if b_매도이력:
             n_익절기준가 = n_당일고가 - 2 * n_ATR14 if n_ATR14 is not None else 0
             b_고가이탈 = n_종가1 < n_익절기준가 if n_ATR14 is not None else n_종가1 < n_저가3봉
-            b_익절 = b_고가터치 and b_고가이탈 and (n_비디1 < 0)
+            # b_익절 = b_고가터치 and b_고가이탈 and (n_비디1 < 0)
+            # b_익절 = b_매도이력 and b_고가이탈 and (n_비디1 < 0)
+            b_익절 = b_고가이탈 and (n_비디1 < 0) if b_매도이력 else False
 
             # 매도신호 확인 - 손절
             n_손절기준가 = n_매수가 * (100 - self.n_손절수익률 - 0.2) / 100

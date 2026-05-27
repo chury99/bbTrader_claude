@@ -78,7 +78,9 @@ class FileManager:
     def rotate_보관파일(self):
         """ 로컬머신 대상으로 보관기간 경과된 파일 삭제 """
         # 기준정보 정의
-        dic_보관기간 = dict(매수매도=self.dic_config['파일보관기간(일)_trader'])
+        dic_보관기간 = dict(데이터=self.dic_config['파일보관기간(일)_collector'],
+                        매수매도=self.dic_config['파일보관기간(일)_trader'],
+                        분석=self.dic_config['파일보관기간(일)_analyzer'])
         li_제외폴더 = list()
 
         # 메인폴더별 파일 탐색
