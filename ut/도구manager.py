@@ -219,7 +219,7 @@ class ToolManager:
         return li_동기화파일명
 
     # noinspection PyTypeChecker,PyUnusedLocal
-    def sftp파일업로드(self, folder_로컬, folder_서버, s_파일명, n_파일보관일수):
+    def sftp파일업로드(self, folder_로컬, s_서버폴더, s_파일명, n_파일보관일수):
         """ sftp 서버 접속 후 해당 파일 업로드 """
         # 서버정보 정의
         dic_서버정보 = json.load(open(os.path.join(self.folder_프로젝트, 'server_info.json'), mode='rt', encoding='utf-8'))
@@ -228,7 +228,7 @@ class ToolManager:
 
         # path 정의
         path_로컬 = os.path.join(folder_로컬, s_파일명).replace('\\', '/')
-        path_서버 = os.path.join(dic_서버폴더['server_kakao'], folder_서버, s_파일명).replace('\\', '/')
+        path_서버 = os.path.join(dic_서버폴더['server_kakao'], s_서버폴더, s_파일명).replace('\\', '/')
 
         # 서버 접속
         li_복사한파일명 = list()

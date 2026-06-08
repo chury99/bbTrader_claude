@@ -296,7 +296,7 @@ class AnalyzerBot:
             # 서버에 저장
             s_서버폴더 = '종목추천'
             li_복사한파일명, li_삭제한파일명, dic_서버정보 = self.tool.sftp파일업로드(
-                            folder_로컬=folder_타겟, folder_서버=s_서버폴더, s_파일명=s_파일명, n_파일보관일수=self.n_서버파일보관일수)
+                            folder_로컬=folder_타겟, s_서버폴더=s_서버폴더, s_파일명=s_파일명, n_파일보관일수=self.n_서버파일보관일수)
 
             # 메세지 송부
             if s_일자 == li_대상일자[-1]:
@@ -348,7 +348,7 @@ class AnalyzerBot:
             # 서버에 저장
             s_서버폴더 = '종목추천'
             li_복사한파일명, li_삭제한파일명, dic_서버정보 = self.tool.sftp파일업로드(
-                            folder_로컬=folder_타겟, folder_서버=s_서버폴더, s_파일명=s_파일명, n_파일보관일수=self.n_서버파일보관일수)
+                            folder_로컬=folder_타겟, s_서버폴더=s_서버폴더, s_파일명=s_파일명, n_파일보관일수=self.n_서버파일보관일수)
 
             # 메세지 송부
             if s_일자 == li_대상일자[-1]:

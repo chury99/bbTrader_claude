@@ -86,7 +86,7 @@ class TraderBot:
             dt_현재 = pd.Timestamp.now()
             if dt_현재.strftime('%H:%M:%S') != s_탐색시점:
                 b_탐색신호_분봉 = (not b_탐색신호_분봉) and (dt_현재.minute % 3 == 0) and (dt_현재.second == 1)
-                b_탐색신호_초봉 = (not b_탐색신호_초봉) and (dt_현재.second % 5 == 1)
+                b_탐색신호_초봉 = (not b_탐색신호_초봉) and (dt_현재.second % 10 == 1)
                 s_탐색시점 = dt_현재.strftime('%H:%M:%S')
 
             # 신호 탐색
