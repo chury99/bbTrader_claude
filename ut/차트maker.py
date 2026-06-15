@@ -45,6 +45,7 @@ class ChartMaker:
         ary_일간승률 = df_매매일보['일간승률'].values
         ary_일간손익비 = df_매매일보['일간손익비'].values
         ary_일간기대치 = df_매매일보['일간기대치'].values
+        ary_주간기대치 = df_매매일보['주간기대치'].values
         ary_누적승률 = df_매매일보['누적승률'].values / 100
         ary_누적손익비 = df_매매일보['누적손익비'].values
         ary_누적기대치 = df_매매일보['누적기대치'].values
@@ -54,6 +55,7 @@ class ChartMaker:
         ax_보조축 = ax.twinx()
         # 기대치
         ax_메인축.bar(li_일자, ary_일간기대치, label='일간기대치', lw=2, alpha=0.5, color=self.dic_색상['회색'])
+        ax_메인축.plot(li_일자, ary_주간기대치, label='주간기대치', lw=2, alpha=0.5, color=self.dic_색상['분홍'])
         ax_메인축.plot(li_일자, ary_누적기대치, label='누적기대치', lw=2, alpha=1, color=self.dic_색상['주황'])
         ax_메인축.axhline(0.2, lw=2, alpha=0.5, linestyle='--', color=self.dic_색상['주황'])
         # 승률

@@ -107,12 +107,12 @@ class AnalyzerBot:
                 # 기준정보 정의
                 df_일봉 = dic_일봉.get(s_종목코드, None)
                 if (df_일봉 is None) or (len(df_일봉) < 2): continue
-                # s_등장시간 = df_조회순위.loc[s_종목코드, '시간']
 
                 # 데이터 생성
                 dt_당일 = df_일봉.index[-1]
                 dt_전일 = df_일봉.index[-2]
                 df_일봉['고가20'] = df_일봉['고가'].shift(1).rolling(20).max()
+                df_일봉['고가20돌파'] = df_일봉['고가'] > df_일봉['고가20']
                 n_전일시가 = df_일봉.loc[dt_전일, '시가']
                 n_전일고가 = df_일봉.loc[dt_전일, '고가']
                 n_전일저가 = df_일봉.loc[dt_전일, '저가']
@@ -125,15 +125,19 @@ class AnalyzerBot:
                 n_전일거래량 = df_일봉.loc[dt_전일, '거래량']
                 n_전일거래량ma20 = df_일봉.loc[dt_전일, '거래량ma20']
                 n_전일변동성 = (n_전일고가 - n_전일저가) / n_전일종가 * 100
-                n_거래량비율 = n_전일거래량 / n_전일거래량ma20
-                n_종가위치 = (n_전일종가 - n_전일저가) / (n_전일고가 - n_전일저가) if (n_전일고가 - n_전일저가) > 0 else 0
+                n_전일거래량비율 = n_전일거래량 / n_전일거래량ma20
+                n_전일종가위치 = (n_전일종가 - n_전일저가) / (n_전일고가 - n_전일저가) if (n_전일고가 - n_전일저가) > 0 else 0
+                n_전일4봉이내돌파횟수 = df_일봉['고가20돌파'].rolling(4).sum().loc[dt_전일]
 
                 # 종목 선정
                 b_전일돌파 = (n_전일종가 > n_전일고가20) and (n_전일상승률 < 29)
-                b_거래량비율 = n_거래량비율 > 2
+                b_일봉돌파 = n_전일4봉이내돌파횟수 > 0
+                b_거래량비율 = n_전일거래량비율 > 2
                 b_상승률 = 8 < n_전일상승률 < 29
-                b_종가위치 =  n_종가위치 > 0.7
-                b_종목선정 = b_전일돌파 and b_상승률 and b_종가위치
+                b_종가위치 =  n_전일종가위치 > 0.7
+                # b_종목선정 = b_전일돌파 and b_상승률 and b_종가위치
+                # b_종목선정 = b_전일돌파
+                b_종목선정 = b_일봉돌파
 
                 b_전일정배열 = n_전일ma5 > n_전일ma20 > n_전일ma120
                 b_전일양봉마감 = n_전일종가 > n_전일시가
@@ -252,8 +256,9 @@ class AnalyzerBot:
             pd.to_pickle(dic_매매정보, os.path.join(folder_타겟, f'{file_타겟}_{s_일자}.pkl'))
 
             # 분봉 저장
+            dic_3분봉 = {종목코드: df_3분봉.loc[df_3분봉['일자'] == s_일자] for 종목코드, df_3분봉 in dic_3분봉.items()}
             os.makedirs(folder := f'{folder_타겟}_3분봉', exist_ok=True)
-            pd.to_pickle(dic_3분봉[dic_3분봉['일자'] == s_일자], os.path.join(folder, f'dic_차트캐시_3분봉_{s_일자}.pkl'))
+            pd.to_pickle(dic_3분봉, os.path.join(folder, f'dic_차트캐시_3분봉_{s_일자}.pkl'))
             os.makedirs(folder := f'{folder_타겟}_1분봉', exist_ok=True)
             pd.to_pickle(dic_1분봉, os.path.join(folder, f'dic_차트캐시_1분봉_{s_일자}.pkl'))
 
@@ -369,7 +374,7 @@ class AnalyzerBot:
             for s_파일일자 in li_파일일자:
                 # 기준정보 정의
                 df_거래내역 = pd.read_pickle(os.path.join(folder_소스, f'{file_소스}_{s_파일일자}.pkl'))
-                if df_거래내역.empty: continue
+                # if df_거래내역.empty: continue
 
                 # 지표 생성
                 df_손익정리_수익 = df_거래내역.loc[df_거래내역['수익률'] > 0]
@@ -382,7 +387,7 @@ class AnalyzerBot:
                 n_일간평균수익 = df_손익정리_수익['수익률'].mean() if n_일간수익매매 > 0 else 0
                 n_일간평균손실 = df_손익정리_손실['수익률'].mean() if n_일간손실매매 > 0 else 0
                 n_일간손익비 = n_일간평균수익 / abs(n_일간평균손실) if n_일간평균손실 != 0 else 0
-                n_일간기대치 = (n_일간승률 / 100 * n_일간손익비) - (1 - n_일간승률 / 100)
+                n_일간기대치 = (n_일간승률 / 100 * n_일간손익비) - (1 - n_일간승률 / 100) if n_일간매매 > 0 else 0
 
                 # 결과 생성
                 dic_결과정리 = dict(일자=s_파일일자,
@@ -412,7 +417,7 @@ class AnalyzerBot:
             n_누적평균수익 = df_누적거래_수익['수익률'].mean() if n_누적수익매매 > 0 else 0
             n_누적평균손실 = df_누적거래_손실['수익률'].mean() if n_누적손실매매 > 0 else 0
             n_누적손익비 = n_누적평균수익 / abs(n_누적평균손실) if n_누적평균손실 != 0 else 0
-            n_누적기대치 = (n_누적승률 / 100 * n_누적손익비) - (1 - n_누적승률 / 100)
+            n_누적기대치 = (n_누적승률 / 100 * n_누적손익비) - (1 - n_누적승률 / 100) if n_누적매매 > 0 else 0
 
             # 로그 기록
             n_누적일수 = len(df_결과정리)
@@ -441,6 +446,7 @@ class AnalyzerBot:
         for s_일자 in li_대상일자:
             # 소스파일 불러오기
             df_결과정리 = pd.read_pickle(os.path.join(folder_소스, f'{file_소스}_{s_일자}.pkl'))
+            if df_결과정리.empty: continue
             df_결과정리 = df_결과정리.set_index('일자', drop=False)
             li_정리일자 = df_결과정리.index.tolist()
 
@@ -449,6 +455,7 @@ class AnalyzerBot:
             df_누적거래 = pd.read_pickle(os.path.join(self.folder_백테스팅, f'{folder_소스}_누적거래', f'df_누적거래_{s_일자}.pkl'))
             dic_일봉 = pd.read_pickle(os.path.join(self.folder_서버, '데이터', '차트캐시', '일봉1', f'dic_차트캐시_1일봉_{s_일자}.pkl'))
             dic_3분봉 = pd.read_pickle(os.path.join(self.folder_서버, '데이터', '차트캐시', '분봉3', f'dic_차트캐시_3분봉_{s_일자}.pkl'))
+            df_누적거래['주차'] = pd.to_datetime(df_누적거래['일자']).dt.isocalendar().week
 
             # 데이터 생성
             li_dic매매일보 = list()
@@ -465,13 +472,33 @@ class AnalyzerBot:
                 n_누적평균수익 = df_누적거래_정리일자_수익['수익률'].mean() if n_누적수익매매 > 0 else 0
                 n_누적평균손실 = df_누적거래_정리일자_손실['수익률'].mean() if n_누적손실매매 > 0 else 0
                 n_누적손익비 = n_누적평균수익 / abs(n_누적평균손실) if n_누적평균손실 != 0 else 0
-                n_누적기대치 = (n_누적승률 / 100 * n_누적손익비) - (1 - n_누적승률 / 100)
+                n_누적기대치 = (n_누적승률 / 100 * n_누적손익비) - (1 - n_누적승률 / 100) if n_누적매매 > 0 else 0
+
+                # 데이터 정의 - 주차별
+                n_정리주차 = pd.Timestamp(s_정리일자).week
+                df_누적거래_정리주차 = df_누적거래.loc[df_누적거래['주차'] == n_정리주차]
+                df_누적거래_정리주차_수익 = df_누적거래_정리주차.loc[df_누적거래_정리주차['수익률'] > 0]
+                df_누적거래_정리주차_손실 = df_누적거래_정리주차.loc[df_누적거래_정리주차['수익률'] <= 0]
+                n_주간매매 = len(df_누적거래_정리주차)
+                n_주간수익매매 = len(df_누적거래_정리주차_수익)
+                n_주간손실매매 = len(df_누적거래_정리주차_손실)
+                n_주간승률 = n_주간수익매매 / n_주간매매 * 100 if n_주간매매 > 0 else 0
+                n_주간총손익 = df_누적거래_정리주차['수익률'].sum() if n_주간매매 > 0 else 0
+                n_주간평균수익 = df_누적거래_정리주차_수익['수익률'].mean() if n_주간수익매매 > 0 else 0
+                n_주간평균손실 = df_누적거래_정리주차_손실['수익률'].mean() if n_주간손실매매 > 0 else 0
+                n_주간손익비 = n_주간평균수익 / abs(n_주간평균손실) if n_주간평균손실 != 0 else 0
+                n_주간기대치 = (n_주간승률 / 100 * n_주간손익비) - (1 - n_주간승률 / 100) if n_주간매매 > 0 else 0
 
                 # 매매일보 생성
                 dic_매매일보 = df_결과정리.loc[s_정리일자].to_dict()
                 dic_매매일보.update(누적매매=n_누적매매, 누적수익매매=n_누적수익매매, 누적손실매매=n_누적손실매매, 누적승률=n_누적승률,
                                 누적총손익=n_누적총손익, 누적평균수익=n_누적평균수익, 누적평균손실=n_누적평균손실, 누적손익비=n_누적손익비,
-                                누적기대치=n_누적기대치)
+                                누적기대치=n_누적기대치,
+                                주차=n_정리주차,
+                                주간매매=n_주간매매, 주간수익매매=n_주간수익매매, 주간손실매매=n_주간손실매매, 주간승률=n_주간승률,
+                                주간총손익=n_주간총손익, 주간평균수익=n_주간평균수익, 주간평균손실=n_주간평균손실, 주간손익비=n_주간손익비,
+                                주간기대치=n_주간기대치
+                                )
                 li_dic매매일보.append(dic_매매일보)
 
             # 매매일보 생성
@@ -523,8 +550,10 @@ class AnalyzerBot:
 
             # 그래프 웹서버 복사
             s_전략명 = '돌파매매'
+            li_파일일자 = [re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_그래프) if '.svg' in 파일]
+            n_파일보관일수 = (pd.Timestamp(s_일자) - pd.Timestamp(min(li_파일일자))).days if len(li_파일일자) > 0 else self.n_검증일수
             li_복사한파일명, li_삭제한파일명, dic_서버정보 = self.tool.sftp파일업로드(folder_로컬=folder_그래프,
-                                                         s_서버폴더=s_전략명, s_파일명=file_그래프, n_파일보관일수=self.n_검증일수)
+                                                         s_서버폴더=s_전략명, s_파일명=file_그래프, n_파일보관일수=n_파일보관일수)
 
             # 메세지 송부
             if b_카톡 and s_일자 == li_대상일자[-1]:
@@ -562,14 +591,22 @@ class AnalyzerBot:
         # 지표 생성
         df_3분봉['직전ma5'] = df_3분봉['종가ma5'].shift(1)
         df_3분봉['직전ma20'] = df_3분봉['종가ma20'].shift(1)
+        df_3분봉['전전ma20'] = df_3분봉['종가ma20'].shift(2)
         df_3분봉['직전ma120'] = df_3분봉['종가ma120'].shift(1)
         df_3분봉['고가20'] = df_3분봉['고가'].shift(1).rolling(20).max()
+        df_3분봉['고가40'] = df_3분봉['고가'].shift(1).rolling(40).max()
+        df_3분봉['저가3'] = df_3분봉['저가'].shift(1).rolling(3).min()
         df_3분봉['tr'] = pd.concat([df_3분봉['고가'] - df_3분봉['저가'],
                                    (df_3분봉['고가'] - df_3분봉['종가'].shift(1)).abs(),
                                    (df_3분봉['저가'] - df_3분봉['종가'].shift(1)).abs()], axis=1).max(axis=1)
         df_3분봉['직전atr'] = df_3분봉['tr'].ewm(span=14, adjust=False).mean().shift(1)
+        df_3분봉['직전시가'] = df_3분봉['시가'].shift(1)
         df_3분봉['직전고가'] = df_3분봉['고가'].shift(1)
+        df_3분봉['직전저가'] = df_3분봉['저가'].shift(1)
         df_3분봉['직전종가'] = df_3분봉['종가'].shift(1)
+        df_3분봉['전전종가'] = df_3분봉['종가'].shift(2)
+        df_3분봉['직전거래량'] = df_3분봉['거래량'].shift(1)
+        df_3분봉['직전거래량ma20'] = df_3분봉['거래량ma20'].shift(1)
         df_3분봉_당일 = df_3분봉.loc[df_3분봉['일자'] == s_일자]
         df_3분봉['당일고가'] = [None] * (len(df_3분봉) - len(df_3분봉_당일)) + df_3분봉_당일['고가'].cummax().shift(1).tolist()
         df_3분봉['전일일봉고가'] = n_전일일봉고가
@@ -586,7 +623,8 @@ class AnalyzerBot:
 
         # 매매정보 생성
         li_dic매매정보 = list()
-        n_매수후고가 = None
+        # n_매수후고가 = None
+        li_매수정보 = list()
         b_매수신호, b_매도신호, b_보유신호 = False, False, False
         for idx in df_3분봉.index:
             # 기준정보 설정
@@ -596,30 +634,52 @@ class AnalyzerBot:
             n_고가 = dic_3분봉_시점.get('고가')
             n_저가 = dic_3분봉_시점.get('저가')
             n_종가 = dic_3분봉_시점.get('종가')
+            n_직전시가 = dic_3분봉_시점.get('직전시가')
             n_직전고가 = dic_3분봉_시점.get('직전고가')
+            n_직전저가 = dic_3분봉_시점.get('직전저가')
             n_직전종가 = dic_3분봉_시점.get('직전종가')
+            n_전전종가 = dic_3분봉_시점.get('전전종가')
             n_고가20 = dic_3분봉_시점.get('고가20')
+            n_고가40 = dic_3분봉_시점.get('고가40')
+            n_저가3 = dic_3분봉_시점.get('저가3')
             n_직전atr = dic_3분봉_시점.get('직전atr')
             n_직전ma5 = dic_3분봉_시점.get('직전ma5')
             n_직전ma20 = dic_3분봉_시점.get('직전ma20')
+            n_전전ma20 = dic_3분봉_시점.get('전전ma20')
             n_직전ma120 = dic_3분봉_시점.get('직전ma120')
+            n_직전거래량 = dic_3분봉_시점.get('직전거래량')
+            n_직전거래량ma20 = dic_3분봉_시점.get('직전거래량ma20')
             n_당일고가 = dic_3분봉_시점.get('당일고가') if pd.notna(dic_3분봉_시점.get('당일고가')) else 0
 
             # 매수신호 확인
             b_돌파여부, b_배열필터, b_시간필터 = False, False, False
             # n_매수기준가 = max(n_전일일봉고가, n_당일고가)
-            n_매수기준가 = max(n_전일일봉고가, n_고가20)
+            # n_매수기준가 = max(n_전일일봉고가, n_고가20)
+            # n_매수기준가 = max(n_전일일봉고가, n_고가40)
+            n_매수기준가 = max(n_전일일봉고가, 0)
             if not b_보유신호:
                 # 3분봉 확인
-                b_돌파여부 = n_고가 > n_매수기준가
+                b_돌파여부 = (n_고가 > n_매수기준가) and (n_저가 < n_매수기준가) and (n_직전종가 < n_매수기준가) and (n_전전종가 < n_매수기준가)
                 # b_배열필터 = n_직전ma5 > n_직전ma20
                 # b_배열필터 = n_직전종가 > n_직전ma120
-                b_배열필터 = n_직전ma5 > n_직전ma120
-                b_시간필터 = s_분봉시간 < '13:00:00'
+                # b_배열필터 = n_직전ma5 > n_직전ma120
+                b_배열필터 = n_직전ma5 > n_직전ma20 > n_직전ma120
+                b_이격필터 = (((n_직전종가 - n_직전ma20) / n_직전ma20 * 100 > 2.0)
+                          and ((n_직전ma20 - n_전전ma20) / n_전전ma20 * 100 > 0.2)
+                          if not pd.isna(n_직전ma20) and not pd.isna(n_전전ma20) else False)
+                # b_거래량필터 = n_직전거래량 / n_직전거래량ma20 < 1.5 if not pd.isna(n_직전거래량ma20) else False
+                # b_시간필터 = '09:00:00' <= s_분봉시간 < '15:00:00'
+                b_시간필터 = '09:00:00' <= s_분봉시간 < '13:00:00'
+                # b_시간필터 = '09:03:00' <= s_분봉시간 < '13:00:00'
+                # b_시간필터 = '09:30:00' <= s_분봉시간 < '13:00:00'
                 # b_매수정보탐색 = b_돌파여부 and b_배열필터 and b_시간필터
 
                 # 매수정보 확인 - 1분봉 확인
-                if b_돌파여부 and b_배열필터 and b_시간필터:
+                n_이전매수횟수 = len([종목코드 for 종목코드 in li_매수정보 if 종목코드 == s_종목코드])
+                # if b_돌파여부 and b_배열필터 and b_이격필터 and b_거래량필터 and b_시간필터 and n_이전매수횟수 < 1:
+                if b_돌파여부 and b_배열필터 and b_이격필터 and b_시간필터 and n_이전매수횟수 < 1:
+                # if b_돌파여부 and b_배열필터 and b_시간필터 and n_이전매수횟수 < 1:
+                # if b_돌파여부 and b_배열필터 and b_시간필터:
                     # 1분봉 정보 필터링 - 3분봉 1개 봉
                     s_다음분봉시간 = min(시간 for 시간 in df_3분봉['시간'].values if 시간 > s_분봉시간)
                     df_1분봉_대상 = df_1분봉[(df_1분봉['시간'] >= s_분봉시간) & (df_1분봉['시간'] < s_다음분봉시간)]
@@ -628,8 +688,11 @@ class AnalyzerBot:
                     for idx_1분봉 in df_1분봉_대상.index:
                         # 매수신호 확인
                         n_고가_1분봉 = df_1분봉_대상.loc[idx_1분봉, '고가']
-                        b_돌파여부 = n_고가_1분봉 > n_매수기준가
-                        b_매수신호 = b_돌파여부 and b_배열필터 and b_시간필터
+                        n_저가_1분봉 = df_1분봉_대상.loc[idx_1분봉, '저가']
+                        b_돌파여부 = (n_고가_1분봉 > n_매수기준가) and (n_저가_1분봉 < n_매수기준가) and (n_직전종가 < n_매수기준가)
+                        # b_매수신호 = b_돌파여부 and b_배열필터 and b_시간필터
+                        b_매수신호 = b_돌파여부 and b_배열필터 and b_이격필터 and b_시간필터
+                        # b_매수신호 = b_돌파여부 and b_배열필터 and b_이격필터 and b_거래량필터 and b_시간필터
 
                         # 매수정보 생성
                         if b_매수신호:
@@ -639,6 +702,7 @@ class AnalyzerBot:
                                      else n_매수기준가)
                             n_매수가 = self.tool.find_주문단가(n_기준가=n_매수가, n_틱보정=+2)
                             n_매수atr = n_직전atr
+                            li_매수정보.append(s_종목코드)
                             break
 
                     # 신호 업데이트
@@ -649,15 +713,19 @@ class AnalyzerBot:
                 # 매도기준가 생성
                 n_매수후고가 = df_1분봉[(df_1분봉['시간'] > s_매수시점) & (df_1분봉['시간'] < s_분봉시간)]['고가'].max()
                 n_매수후고가 = n_매수가 if pd.isna(n_매수후고가) else n_매수후고가
-                # n_손절기준가 = n_매수가 - 2 * n_매수atr
-                n_손절기준가 = n_매수가 - 1 * n_매수atr
-                # n_목표기준가 = n_매수가 + 3 * n_직전atr
-                # n_목표기준가 = n_매수가 + 4 * n_직전atr
+                # n_손절기준가 = n_매수가 - 1 * n_매수atr
+                n_손절기준가 = n_매수가 - 2 * n_매수atr
+                # n_손절기준가 = n_매수가 - 3 * n_매수atr
+                # n_손절기준가 = n_매수가 - 4 * n_매수atr
+                # n_손절기준가 = min(n_매수가 - 2 * n_매수atr, n_저가3)
+                n_목표기준가 = n_매수가 + 1 * n_매수atr
+                # n_목표기준가 = n_매수가 + 2 * n_매수atr
+                # n_목표기준가 = n_매수가 + 3 * n_매수atr
                 # n_목표기준가 = n_매수가 + 4 * n_매수atr
-                n_목표기준가 = n_매수가 + 3 * n_매수atr
+                # n_트레일링기준가 = n_매수후고가 - 0.5 * n_직전atr
+                n_트레일링기준가 = n_매수후고가 - 1 * n_직전atr
+                # n_트레일링기준가 = n_매수후고가 - 1.5 * n_직전atr
                 # n_트레일링기준가 = n_매수후고가 - 2 * n_직전atr
-                # n_트레일링기준가 = n_매수후고가 - 1 * n_직전atr
-                n_트레일링기준가 = n_매수후고가 - 0.5 * n_직전atr
 
                 # 1분봉 정보 필터링 - 3분봉 1개 봉, 매수 이후
                 s_다음분봉시간 = min(시간 for 시간 in df_3분봉['시간'].values if 시간 > s_분봉시간)
@@ -690,6 +758,7 @@ class AnalyzerBot:
                                 else n_트레일링기준가 if b_트레일링
                                 else n_종가_1분봉)
                         n_매도가 = self.tool.find_주문단가(n_기준가=s_매도가, n_틱보정=-3)
+                        break
 
             # 결과 생성
             dic_매매정보 = dic_3분봉_시점
