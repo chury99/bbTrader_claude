@@ -42,10 +42,16 @@ class ChartMaker:
         """ 입력된 데이터 기준으로 기대수익 그래프 생성 후 리턴 """
         # 데이터 정의
         li_일자 = [f'{일자[4:6]}-{일자[6:8]}' for 일자 in df_매매일보['일자']]
+        ary_일간매매 = df_매매일보['일간매매'].values
+        ary_일간수익매매 = df_매매일보['일간수익매매'].values
+        ary_일간손실매매 = df_매매일보['일간손실매매'].values
         ary_일간승률 = df_매매일보['일간승률'].values
         ary_일간손익비 = df_매매일보['일간손익비'].values
         ary_일간기대치 = df_매매일보['일간기대치'].values
         ary_주간기대치 = df_매매일보['주간기대치'].values
+        ary_누적매매 = df_매매일보['누적매매'].values
+        ary_누적수익매매 = df_매매일보['누적수익매매'].values
+        ary_누적손실매매 = df_매매일보['누적손실매매'].values
         ary_누적승률 = df_매매일보['누적승률'].values / 100
         ary_누적손익비 = df_매매일보['누적손익비'].values
         ary_누적기대치 = df_매매일보['누적기대치'].values
@@ -95,18 +101,23 @@ class ChartMaker:
         n_누적기대치 = ary_누적기대치[-1]
         n_누적승률 = ary_누적승률[-1] * 100
         n_누적손익비 = ary_누적손익비[-1]
-        # ax_메인축.text(li_일자[-1], 1.10, f'기대수익 {n_누적기대치:,.2f}',
-        #             fontsize=9, fontweight='bold', color=self.dic_색상['주황'], va='top', ha='right')
-        # ax_메인축.text(li_일자[-1], 0.98, f'승률 {n_누적승률 * 100:,.0f}%',
-        #             fontsize=9, fontweight='bold', color=self.dic_색상['녹색'], va='top', ha='right')
-        # ax_메인축.text(li_일자[-1], 0.86, f'손익비 {n_누적손익비:,.1f}',
-        #             fontsize=9, fontweight='bold', color=self.dic_색상['보라'], va='top', ha='right')
-        ax_메인축.text(0.99, 0.97, f'기대수익 {n_누적기대치:,.2f}', fontsize=9, fontweight='bold', color=self.dic_색상['주황'],
-                    va='top', ha='right', transform=ax_메인축.transAxes)
-        ax_메인축.text(0.99, 0.90, f'승률 {n_누적승률:,.0f}%', fontsize=9, fontweight='bold', color=self.dic_색상['녹색'],
-                    va='top', ha='right', transform=ax_메인축.transAxes)
-        ax_메인축.text(0.99, 0.83, f'손익비 {n_누적손익비:,.1f}', fontsize=9, fontweight='bold', color=self.dic_색상['보라'],
-                    va='top', ha='right', transform=ax_메인축.transAxes)
+        n_누적매매 = ary_누적매매[-1]
+        # ax_메인축.text(0.99, 0.97, f'기대치 {n_누적기대치:,.2f}', fontsize=9, fontweight='bold', color=self.dic_색상['주황'],
+        #             va='top', ha='right', transform=ax_메인축.transAxes)
+        # ax_메인축.text(0.99, 0.90, f'승률 {n_누적승률:,.0f}%', fontsize=9, fontweight='bold', color=self.dic_색상['녹색'],
+        #             va='top', ha='right', transform=ax_메인축.transAxes)
+        # ax_메인축.text(0.99, 0.83, f'손익비 {n_누적손익비:,.1f}', fontsize=9, fontweight='bold', color=self.dic_색상['보라'],
+        #             va='top', ha='right', transform=ax_메인축.transAxes)
+        # ax_메인축.text(0.99, 0.76, f'매매수 {n_누적매매:,.0f}', fontsize=9, fontweight='bold', color=self.dic_색상['회색'],
+        #             va='top', ha='right', transform=ax_메인축.transAxes)
+        ax_메인축.text(0.68, 0.98, f'기대치 {n_누적기대치:,.2f}', fontsize=9, fontweight='bold', color=self.dic_색상['주황'],
+                    va='top', ha='left', transform=ax_메인축.transAxes)
+        ax_메인축.text(0.68, 0.91, f'손익비 {n_누적손익비:,.1f}', fontsize=9, fontweight='bold', color=self.dic_색상['보라'],
+                    va='top', ha='left', transform=ax_메인축.transAxes)
+        ax_메인축.text(0.85, 0.98, f'승률 {n_누적승률:,.0f}%', fontsize=9, fontweight='bold', color=self.dic_색상['녹색'],
+                    va='top', ha='left', transform=ax_메인축.transAxes)
+        ax_메인축.text(0.85, 0.91, f'매매 {n_누적매매:,.0f}', fontsize=9, fontweight='bold', color=self.dic_색상['회색'],
+                    va='top', ha='left', transform=ax_메인축.transAxes)
 
         return ax
 

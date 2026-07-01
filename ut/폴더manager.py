@@ -24,6 +24,9 @@ class FolderManager:
         self.dic_폴더정보.update(매수매도=os.path.join(folder_매수매도))
         self.dic_폴더정보['매수매도|종목잔고'] = os.path.join(folder_매수매도, '종목잔고_tr')
         self.dic_폴더정보['매수매도|신호탐색'] = os.path.join(folder_매수매도, '신호탐색')
+        self.dic_폴더정보['매수매도|감시종목'] = os.path.join(folder_매수매도, '감시종목')
+        self.dic_폴더정보['매수매도|주문체결'] = os.path.join(folder_매수매도, '주문체결')
+        self.dic_폴더정보['매수매도|주식체결'] = os.path.join(folder_매수매도, '주식체결')
 
         # 데이터 폴더 정의
         folder_데이터 = os.path.join(folder_work, '데이터')
