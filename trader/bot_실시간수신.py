@@ -64,12 +64,6 @@ class TraderBot:
         # 감시종목 선정
         li_dic종목선정 = list()
         for s_종목코드, df_일봉 in dic_일봉.items():
-            # df_일봉['거래대상포함'] = s_종목코드 in li_거래대상
-            # df_일봉['조회순위포함'] = s_종목코드 in li_조회순위
-            # df_일봉['정배열'] = (df_일봉['종가ma5'] > df_일봉['종가ma20']) & (df_일봉['종가ma20'] > df_일봉['종가ma120'])
-            # dic_종목선정 = df_일봉.iloc[-1].to_dict()
-            # li_dic종목선정.append(dic_종목선정)
-
             n_종가ma5 = df_일봉['종가ma5'].iloc[-1]
             n_종가ma20 = df_일봉['종가ma20'].iloc[-1]
             n_종가ma120 = df_일봉['종가ma120'].iloc[-1]
