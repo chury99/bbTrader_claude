@@ -18,6 +18,12 @@ _P_기울기 = float(os.environ.get('BT_SLOPE', '0.0'))         # MA20 상승률
 _P_확장max = float(os.environ.get('BT_EXTMAX', '3.0'))       # 종가-MA20 이격 상한 (%)
 _P_거래량배수 = float(os.environ.get('BT_VOLMULT', '2.0'))    # 거래량/거래량MA20 최소 배수
 
+# 청산 파라미터 (ATR 배수, 환경변수로 조정 가능)
+_E_손절 = float(os.environ.get('BT_STOP', '2.0'))           # 손절 = 매수가 - N*ATR
+_E_목표 = float(os.environ.get('BT_TARGET', '1.0'))         # 목표(트레일링 활성) = 매수가 + N*ATR
+_E_트레일링 = float(os.environ.get('BT_TRAIL', '1.0'))       # 트레일링 = 매수후고가 - N*ATR
+_E_본전 = float(os.environ.get('BT_BREAKEVEN', '0.5'))       # 본전스톱: 고가가 +N*ATR 도달 시 손절을 매수가로 상향 (0=미사용, 스윕결과 0.5 채택)
+
 
 # noinspection NonAsciiCharacters,SpellCheckingInspection,PyPep8Naming,PyTypeChecker
 class AnalyzerBot:
@@ -754,19 +760,13 @@ class AnalyzerBot:
                 # 매도기준가 생성
                 n_매수후고가 = df_1분봉[(df_1분봉['시간'] > s_매수시점) & (df_1분봉['시간'] < s_분봉시간)]['고가'].max()
                 n_매수후고가 = n_매수가 if pd.isna(n_매수후고가) else n_매수후고가
-                # n_손절기준가 = n_매수가 - 1 * n_매수atr
-                n_손절기준가 = n_매수가 - 2 * n_매수atr
-                # n_손절기준가 = n_매수가 - 3 * n_매수atr
-                # n_손절기준가 = n_매수가 - 4 * n_매수atr
-                # n_손절기준가 = min(n_매수가 - 2 * n_매수atr, n_저가3)
-                n_목표기준가 = n_매수가 + 1 * n_매수atr
-                # n_목표기준가 = n_매수가 + 2 * n_매수atr
-                # n_목표기준가 = n_매수가 + 3 * n_매수atr
-                # n_목표기준가 = n_매수가 + 4 * n_매수atr
-                # n_트레일링기준가 = n_매수후고가 - 0.5 * n_직전atr
-                n_트레일링기준가 = n_매수후고가 - 1 * n_직전atr
-                # n_트레일링기준가 = n_매수후고가 - 1.5 * n_직전atr
-                # n_트레일링기준가 = n_매수후고가 - 2 * n_직전atr
+                n_손절기준가 = n_매수가 - _E_손절 * n_매수atr
+                n_목표기준가 = n_매수가 + _E_목표 * n_매수atr
+                n_트레일링기준가 = n_매수후고가 - _E_트레일링 * n_직전atr
+
+                # 본전스톱 - 고가가 +N*ATR 도달 시 손절선을 매수가로 상향 (되돌림 손실을 본전으로 마감)
+                b_본전도달 = (_E_본전 > 0) and (n_매수후고가 >= n_매수가 + _E_본전 * n_매수atr)
+                n_손절적용 = max(n_손절기준가, n_매수가) if b_본전도달 else n_손절기준가
 
                 # 1분봉 정보 필터링 - 3분봉 1개 봉, 매수 이후
                 s_다음분봉시간 = min(시간 for 시간 in df_3분봉['시간'].values if 시간 > s_분봉시간)
@@ -786,9 +786,8 @@ class AnalyzerBot:
                     n_종가_1분봉 = df_1분봉_대상.loc[idx_1분봉, '종가']
 
                     # 매도신호 확인
-                    b_손절터치 = n_저가_1분봉 < n_손절기준가
+                    b_손절터치 = n_저가_1분봉 < n_손절적용
                     b_목표터치 = n_매수후고가 > n_목표기준가
-                    # b_트레일링 = n_저가_1분봉 < n_트레일링기준가 and b_목표터치
                     b_트레일링 = n_직전종가 < n_트레일링기준가 and b_목표터치
                     b_타임아웃 = s_분봉시간_1분봉 > '15:10:00'
                     b_매도신호 = b_손절터치 or b_트레일링 or b_타임아웃
@@ -796,10 +795,7 @@ class AnalyzerBot:
                     # 매도정보 생성
                     if b_매도신호:
                         s_매도시점 = s_분봉시간_1분봉
-                        # s_매도가 =(n_손절기준가 if b_손절터치
-                        #         else n_트레일링기준가 if b_트레일링
-                        #         else n_종가_1분봉)
-                        s_매도가 =(n_손절기준가 if b_손절터치
+                        s_매도가 =(n_손절적용 if b_손절터치
                                 else n_시가 if b_트레일링
                                 else n_종가_1분봉)
                         n_매도가 = self.tool.find_주문단가(n_기준가=s_매도가, n_틱보정=-3)
