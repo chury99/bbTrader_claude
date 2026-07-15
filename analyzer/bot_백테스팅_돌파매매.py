@@ -13,6 +13,11 @@ from matplotlib.gridspec import GridSpec
 
 import analyzer, ut
 
+# 진입 필터 임계값 (환경변수로 조정 가능 - 튜닝용, 스윕 결과 최적 구간값 기본 적용)
+_P_기울기 = float(os.environ.get('BT_SLOPE', '0.0'))         # MA20 상승률 최소값 (%)
+_P_확장max = float(os.environ.get('BT_EXTMAX', '3.0'))       # 종가-MA20 이격 상한 (%)
+_P_거래량배수 = float(os.environ.get('BT_VOLMULT', '2.0'))    # 거래량/거래량MA20 최소 배수
+
 
 # noinspection NonAsciiCharacters,SpellCheckingInspection,PyPep8Naming,PyTypeChecker
 class AnalyzerBot:
@@ -35,7 +40,7 @@ class AnalyzerBot:
         # self.folder_조회순위 = dic_폴더정보['데이터|조회순위']
         # self.folder_차트정보 = dic_폴더정보['데이터|차트정보']
         # self.folder_분석 = dic_폴더정보['분석']
-        self.folder_백테스팅 = os.path.join(dic_폴더정보['분석|백테스팅'], '돌파매매')
+        self.folder_백테스팅 = os.path.join(dic_폴더정보['분석|백테스팅'], '클로드_돌파매매')
         os.makedirs(self.folder_백테스팅, exist_ok=True)
 
         # 추가 폴더 정의
@@ -633,6 +638,7 @@ class AnalyzerBot:
 
         # 지표 생성
         df_3분봉['직전ma5'] = df_3분봉['종가ma5'].shift(1)
+        df_3분봉['전전ma5'] = df_3분봉['종가ma5'].shift(2)
         df_3분봉['직전ma20'] = df_3분봉['종가ma20'].shift(1)
         df_3분봉['전전ma20'] = df_3분봉['종가ma20'].shift(2)
         df_3분봉['직전ma120'] = df_3분봉['종가ma120'].shift(1)
@@ -689,6 +695,7 @@ class AnalyzerBot:
             n_저가3 = dic_3분봉_시점.get('저가3')
             n_직전atr = dic_3분봉_시점.get('직전atr')
             n_직전ma5 = dic_3분봉_시점.get('직전ma5')
+            n_전전ma5 = dic_3분봉_시점.get('전전ma5')
             n_직전ma20 = dic_3분봉_시점.get('직전ma20')
             n_전전ma20 = dic_3분봉_시점.get('전전ma20')
             n_직전ma120 = dic_3분봉_시점.get('직전ma120')
@@ -696,66 +703,48 @@ class AnalyzerBot:
             n_직전거래량ma20 = dic_3분봉_시점.get('직전거래량ma20')
             n_당일고가 = dic_3분봉_시점.get('당일고가') if pd.notna(dic_3분봉_시점.get('당일고가')) else 0
 
-            # 매수신호 확인
+            # 매수신호 확인 - 상승 시작(MA5>MA20 골든크로스) 시점 진입
             b_돌파여부, b_배열필터, b_시간필터 = False, False, False
-            # n_매수기준가 = max(n_전일일봉고가, n_당일고가)
-            # n_매수기준가 = max(n_전일일봉고가, n_고가20)
-            # n_매수기준가 = max(n_전일일봉고가, n_고가40)
-            n_매수기준가 = max(n_전일일봉고가, 0)
-            # n_매수기준가 = max(n_전일바디고가, 0)
-            # n_매수기준가 = max(n_전일종가, 0)
             if not b_보유신호:
-                # 3분봉 확인
-                b_돌파여부 = (n_고가 > n_매수기준가) and (n_저가 < n_매수기준가) and (n_직전종가 < n_매수기준가) and (n_전전종가 < n_매수기준가)
-                # b_배열필터 = n_직전ma5 > n_직전ma20
-                # b_배열필터 = n_직전종가 > n_직전ma120
-                # b_배열필터 = n_직전ma5 > n_직전ma120
-                b_배열필터 = n_직전ma5 > n_직전ma20 > n_직전ma120
-                b_이격필터 = (((n_직전종가 - n_직전ma20) / n_직전ma20 * 100 > 2.0)
-                          and ((n_직전ma20 - n_전전ma20) / n_전전ma20 * 100 > 0.2)
-                          if not pd.isna(n_직전ma20) and not pd.isna(n_전전ma20) else False)
-                # b_이격필터 = (((n_직전종가 - n_직전ma20) / n_직전ma20 * 100 > 1.5)
-                #           and ((n_직전ma20 - n_전전ma20) / n_전전ma20 * 100 > 0.2)
-                #           if not pd.isna(n_직전ma20) and not pd.isna(n_전전ma20) else False)
-                # b_거래량필터 = n_직전거래량 / n_직전거래량ma20 < 1.5 if not pd.isna(n_직전거래량ma20) else False
-                # b_시간필터 = '09:00:00' <= s_분봉시간 < '15:00:00'
+                # 상승전환 조건 - MA5가 MA20을 상향 돌파(골든크로스)한 직후 = 상승이 시작되는 시점
+                b_골든크로스 = ((n_직전ma5 > n_직전ma20) and (n_전전ma5 <= n_전전ma20)
+                            if not (pd.isna(n_직전ma5) or pd.isna(n_직전ma20)
+                                    or pd.isna(n_전전ma5) or pd.isna(n_전전ma20)) else False)
+                # 상위추세 필터 - 종가·중기(MA20) 모두 장기(MA120) 위 = 큰 추세 상승국면 (하락장/횡보 진입 방지)
+                b_추세필터 = ((n_직전ma20 > n_직전ma120) and (n_직전종가 > n_직전ma120)
+                          if not pd.isna(n_직전ma120) else False)
+                # 기울기 필터 - MA20이 상승 중 (상승률 임계값↑)
+                b_기울기필터 = (((n_직전ma20 - n_전전ma20) / n_전전ma20 * 100 > _P_기울기)
+                            if not pd.isna(n_전전ma20) and n_전전ma20 else False)
+                # 미확장 필터 - 아직 크게 오르지 않은 초기 국면 (종가가 MA20 대비 임계값 이내)
+                b_미확장필터 = (((n_직전종가 - n_직전ma20) / n_직전ma20 * 100 < _P_확장max)
+                            if not pd.isna(n_직전ma20) else False)
+                # 거래량 필터 - 거래량 실린 상승전환 (평균 대비 배수↑)
+                b_거래량필터 = (n_직전거래량 > _P_거래량배수 * n_직전거래량ma20) if not pd.isna(n_직전거래량ma20) else False
+                # 시간 필터
                 b_시간필터 = '09:00:00' <= s_분봉시간 < '13:00:00'
-                # b_시간필터 = '09:03:00' <= s_분봉시간 < '13:00:00'
-                # b_시간필터 = '09:10:00' <= s_분봉시간 < '13:00:00'
-                # b_시간필터 = '09:30:00' <= s_분봉시간 < '13:00:00'
-                # b_매수정보탐색 = b_돌파여부 and b_배열필터 and b_시간필터
 
-                # 매수정보 확인 - 1분봉 확인
+                # 결과 기록용 컬럼 재사용 (돌파여부=골든크로스, 배열필터=추세필터)
+                b_돌파여부 = b_골든크로스
+                b_배열필터 = b_추세필터
+
+                # 매수정보 확인
                 n_이전매수횟수 = len([종목코드 for 종목코드 in li_매수정보 if 종목코드 == s_종목코드])
-                # if b_돌파여부 and b_배열필터 and b_이격필터 and b_거래량필터 and b_시간필터 and n_이전매수횟수 < 1:
-                if b_돌파여부 and b_배열필터 and b_이격필터 and b_시간필터 and n_이전매수횟수 < 1:
-                # if b_돌파여부 and b_배열필터 and b_이격필터 and b_시간필터:
-                # if b_돌파여부 and b_배열필터 and b_시간필터 and n_이전매수횟수 < 1:
-                # if b_돌파여부 and b_배열필터 and b_시간필터:
-                    # 1분봉 정보 필터링 - 3분봉 1개 봉
+                if (b_골든크로스 and b_추세필터 and b_기울기필터 and b_미확장필터 and b_거래량필터
+                        and b_시간필터 and n_이전매수횟수 < 1):
+                    # 진입 체결 - 신호 확정(직전봉 종가) 직후, 현재 3분봉의 첫 1분봉 시가로 진입
                     s_다음분봉시간 = min(시간 for 시간 in df_3분봉['시간'].values if 시간 > s_분봉시간)
                     df_1분봉_대상 = df_1분봉[(df_1분봉['시간'] >= s_분봉시간) & (df_1분봉['시간'] < s_다음분봉시간)]
 
-                    # 1분봉 정보 확인
-                    for idx_1분봉 in df_1분봉_대상.index:
-                        # 매수신호 확인
-                        n_고가_1분봉 = df_1분봉_대상.loc[idx_1분봉, '고가']
-                        n_저가_1분봉 = df_1분봉_대상.loc[idx_1분봉, '저가']
-                        b_돌파여부 = (n_고가_1분봉 > n_매수기준가) and (n_저가_1분봉 < n_매수기준가) and (n_직전종가 < n_매수기준가)
-                        # b_매수신호 = b_돌파여부 and b_배열필터 and b_시간필터
-                        b_매수신호 = b_돌파여부 and b_배열필터 and b_이격필터 and b_시간필터
-                        # b_매수신호 = b_돌파여부 and b_배열필터 and b_이격필터 and b_거래량필터 and b_시간필터
-
-                        # 매수정보 생성
-                        if b_매수신호:
-                            n_시가_1분봉 = df_1분봉_대상.loc[idx_1분봉, '시가']
-                            s_매수시점 = df_1분봉.loc[idx_1분봉, '시간']
-                            n_매수가 = (n_시가_1분봉 if n_시가_1분봉 > n_매수기준가
-                                     else n_매수기준가)
-                            n_매수가 = self.tool.find_주문단가(n_기준가=n_매수가, n_틱보정=+2)
-                            n_매수atr = n_직전atr
-                            li_매수정보.append(s_종목코드)
-                            break
+                    # 진입가 확정
+                    if len(df_1분봉_대상) > 0:
+                        idx_1분봉 = df_1분봉_대상.index[0]
+                        n_시가_1분봉 = df_1분봉_대상.loc[idx_1분봉, '시가']
+                        s_매수시점 = df_1분봉.loc[idx_1분봉, '시간']
+                        n_매수가 = self.tool.find_주문단가(n_기준가=n_시가_1분봉, n_틱보정=+2)
+                        n_매수atr = n_직전atr
+                        li_매수정보.append(s_종목코드)
+                        b_매수신호 = True
 
                     # 신호 업데이트
                     b_보유신호 = True if b_매수신호 else b_보유신호
@@ -850,10 +839,11 @@ class AnalyzerBot:
         df_매매정보 = df_매매정보[li_컬럼]
         df_매매정보['수익률'] = (df_매매정보['매도가'] - df_매매정보['매수가']) / df_매매정보['매수가'] * 100 - 0.2
 
-        # csv 저장
-        os.makedirs(folder := os.path.join(f'{folder_타겟}_종목별', f'매매정보_{s_일자}'), exist_ok=True)
-        df_매매정보.to_csv(os.path.join(folder, f'{file_타겟}_{s_일자}_{s_종목코드}_{s_종목명}.csv'),
-                            index=False, encoding='cp949')
+        # csv 저장 (folder_타겟 None 이면 생략 - 파라미터 스윕용)
+        if folder_타겟 is not None:
+            os.makedirs(folder := os.path.join(f'{folder_타겟}_종목별', f'매매정보_{s_일자}'), exist_ok=True)
+            df_매매정보.to_csv(os.path.join(folder, f'{file_타겟}_{s_일자}_{s_종목코드}_{s_종목명}.csv'),
+                                index=False, encoding='cp949')
 
         return s_종목코드, df_매매정보
 
