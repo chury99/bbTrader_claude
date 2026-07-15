@@ -4,6 +4,12 @@ import pandas as pd
 import requests
 import time
 
+from contextlib import contextmanager
+try:
+    import fcntl    # 프로세스 간 파일 락 (Unix 전용)
+except ImportError:
+    fcntl = None
+
 import ut
 
 
@@ -21,6 +27,7 @@ class RestAPIkiwoom:
         self.s_서버구분 = dic_config['서버구분']   # 실서버, 모의서버
         self.s_거래소 = dic_config['거래소구분']    # KRX:한국거래소, NXT:넥스트트레이드
         self.n_tr딜레이 = 0.2    # tr 요청간 딜레이 - 이용약관 제 11조 (API 호출 횟수 제한) 기준 초당 5건
+        self.n_요청타임아웃 = 10    # requests 요청 타임아웃 (초) - 네트워크 지연 시 무한 대기 방지
 
         # 토큰 발급
         folder_키움key = dic_config['folder_kiwoom']
@@ -38,32 +45,53 @@ class RestAPIkiwoom:
         dic_전체키 = json.load(open(path_접속키, mode='rt', encoding='utf-8'))
         dic_접속키 = dic_전체키.get(self.s_계좌번호, dict()) if os.path.exists(path_접속키) else dict()
 
-        # 토큰 불러오기
-        dic_전체토큰 = json.load(open(path_접근토큰, mode='rt', encoding='utf-8')) if os.path.exists(path_접근토큰) else dict()
-        dic_접근토큰 = dic_전체토큰.get(self.s_계좌번호, dict()) if os.path.exists(path_접근토큰) else dict()
+        # 토큰파일 동시 접근 방지 (multiprocessing 환경에서 파일 손상/중복발급 방지)
+        path_락 = os.path.join(self.folder_베이스, 'kiwoomToken.lock')
+        with self._토큰파일락(path_락):
+            # 토큰 불러오기
+            dic_전체토큰 = json.load(open(path_접근토큰, mode='rt', encoding='utf-8')) if os.path.exists(path_접근토큰) else dict()
+            dic_접근토큰 = dic_전체토큰.get(self.s_계좌번호, dict()) if os.path.exists(path_접근토큰) else dict()
 
-        # 토큰 미존재 시 토큰 발급
-        if len(dic_접근토큰) == 0:
-            dic_접근토큰 = self.tr_접근토큰발급(dic_접속키)
-            dic_전체토큰[self.s_계좌번호] = dic_접근토큰
-            json.dump(dic_전체토큰, open(path_접근토큰, mode='wt', encoding='utf-8'), indent=4, ensure_ascii=False)
+            # 토큰 미존재 시 토큰 발급
+            if len(dic_접근토큰) == 0:
+                dic_접근토큰 = self.tr_접근토큰발급(dic_접속키)
+                dic_전체토큰[self.s_계좌번호] = dic_접근토큰
+                json.dump(dic_전체토큰, open(path_접근토큰, mode='wt', encoding='utf-8'), indent=4, ensure_ascii=False)
 
-        # 정상수신 확인
-        if isinstance(dic_접근토큰, str):
-            breakpoint()
+            # 정상수신 확인 - 발급 실패 시 에러 문자열이 반환됨
+            if isinstance(dic_접근토큰, str):
+                raise RuntimeError(f'접근토큰 발급 실패 - {dic_접근토큰}')
 
-        # 만료여부 확인
-        dt_토큰만료 = pd.Timestamp(dic_접근토큰['expires_dt'])
-        if pd.Timestamp.now() > dt_토큰만료 - pd.Timedelta(hours=12):
-            self.tr_접근토큰폐기(dic_접속키, dic_접근토큰)
-            dic_접근토큰 = self.tr_접근토큰발급(dic_접속키)
-            dic_전체토큰[self.s_계좌번호] = dic_접근토큰
-            json.dump(dic_전체토큰, open(path_접근토큰, mode='wt', encoding='utf-8'), indent=4, ensure_ascii=False)
+            # 만료여부 확인
+            dt_토큰만료 = pd.Timestamp(dic_접근토큰['expires_dt'])
+            if pd.Timestamp.now() > dt_토큰만료 - pd.Timedelta(hours=12):
+                self.tr_접근토큰폐기(dic_접속키, dic_접근토큰)
+                dic_접근토큰 = self.tr_접근토큰발급(dic_접속키)
+                if isinstance(dic_접근토큰, str):
+                    raise RuntimeError(f'접근토큰 발급 실패 - {dic_접근토큰}')
+                dic_전체토큰[self.s_계좌번호] = dic_접근토큰
+                json.dump(dic_전체토큰, open(path_접근토큰, mode='wt', encoding='utf-8'), indent=4, ensure_ascii=False)
 
         # 토큰값 정의
         s_접근토큰 = dic_접근토큰['token']
 
         return s_접근토큰
+
+    @contextmanager
+    def _토큰파일락(self, path_락):
+        """ 프로세스 간 토큰파일 동시 접근 방지용 배타적 파일 락 (Unix 전용, 미지원 시 no-op) """
+        # fcntl 미지원 환경(예: Windows)에서는 락 없이 통과
+        if fcntl is None:
+            yield
+            return
+
+        # 배타적 락 획득 후 해제
+        with open(path_락, mode='w') as f_락:
+            fcntl.flock(f_락, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(f_락, fcntl.LOCK_UN)
 
     def tr_접근토큰발급(self, dic_접속키):
         """ au10001 | 저장된 appKey, secretKey 읽어와서 토큰 발급 후 리턴 """
@@ -74,7 +102,7 @@ class RestAPIkiwoom:
         s_서버주소 = self.info_서버주소(s_서비스='접근토큰발급')
         dic_헤더 = {'Content-Type': 'application/json;charset=UTF-8'}
         dic_요청 = dict(grant_type='client_credentials', appkey=dic_접속키['appkey'], secretkey=dic_접속키['secretkey'])
-        res = requests.post(url=s_서버주소, headers=dic_헤더, json=dic_요청)
+        res = requests.post(url=s_서버주소, headers=dic_헤더, json=dic_요청, timeout=self.n_요청타임아웃)
 
         # 응답 확인
         dic_데이터 = res.json()
@@ -93,7 +121,7 @@ class RestAPIkiwoom:
         s_서버주소 = self.info_서버주소(s_서비스='접근토큰폐기')
         dic_헤더 = {'Content-Type': 'application/json;charset=UTF-8'}
         dic_요청 = dict(appkey=dic_접속키['appkey'], secretkey=dic_접속키['secretkey'], token=dic_접근토큰['token'])
-        res = requests.post(url=s_서버주소, headers=dic_헤더, json=dic_요청)
+        res = requests.post(url=s_서버주소, headers=dic_헤더, json=dic_요청, timeout=self.n_요청타임아웃)
 
         # 응답 확인
         dic_데이터 = res.json()
@@ -382,7 +410,7 @@ class RestAPIkiwoom:
             # 데이터 요청
             dic_헤더 = self.info_헤더(s_tr아이디=s_tr아이디) if s_연속조회여부 is None else\
                 self.info_헤더(s_tr아이디=s_tr아이디, s_연속조회여부=s_연속조회여부, s_연속조회키=s_연속조회키)
-            res = requests.post(url=s_서버주소, headers=dic_헤더, json=dic_바디)
+            res = requests.post(url=s_서버주소, headers=dic_헤더, json=dic_바디, timeout=self.n_요청타임아웃)
 
             # 응답 확인
             dic_데이터 = res.json()
@@ -403,15 +431,17 @@ class RestAPIkiwoom:
 
             # 일자 기준 조회완료 확인
             if s_기준일from is not None:
+                # 데이터 미존재 시 조회 종료 (빈 리스트 접근 방지)
+                if len(dic_데이터_누적.get(s_리스트키, list())) == 0:
+                    break
+
                 # 일자항목 찾기
                 if s_일자키 is None:
-                    for key, value in dic_데이터[s_리스트키][0].items():
+                    for key, value in dic_데이터_누적[s_리스트키][0].items():
                         if value[:2] in ['19', '20'] and len(value) >= 8:
                             s_일자키 = key
 
                 # 조회 완료 확인
-                # if len(dic_데이터_누적[s_리스트키]) == 0:
-                #     continue
                 s_조회일last = dic_데이터_누적[s_리스트키][-1][s_일자키]
                 if s_조회일last < s_기준일from:
                     break

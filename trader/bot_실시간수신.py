@@ -167,9 +167,10 @@ class TraderBot:
 
     async def run_실시간수신(self):
         """ exec 함수들을 비동기로 구동 """
-        # 웹소켓 서버 접속 및 수신대기
+        # 웹소켓 서버 접속 및 수신대기 (연결 끊김 시 자동 재접속)
+        self.wsapi.b_자동재접속 = True
         await self.wsapi.ws_서버접속()
-        task_수신대기 = asyncio.create_task(self.wsapi.ws_메세지수신())
+        task_수신대기 = asyncio.create_task(self.wsapi.ws_수신관리())
         await asyncio.sleep(1)
 
         # task 활성화

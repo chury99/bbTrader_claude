@@ -29,6 +29,11 @@ class WebsocketAPIkiwoom:
         self.b_연결상태 = False
         self.b_동작중 = True
 
+        # 자동 재접속 정의
+        self.b_자동재접속 = False       # 연결 끊김 시 자동 재접속 여부 (실시간 수신에서 True 설정)
+        self.n_재접속대기 = 5           # 재접속 시도 간격 (초)
+        self.li_구독목록 = list()       # 재접속 시 재등록할 구독 정보
+
         # queue 정의
         self.queue_매매 = asyncio.Queue()
         self.queue_콘솔 = asyncio.Queue()
@@ -91,6 +96,11 @@ class WebsocketAPIkiwoom:
         if not self.b_연결상태:
             await self.ws_서버접속()
 
+        # 연결 실패 시 전송 중단 (None.send() 방지)
+        if not self.b_연결상태 or self.websocket is None:
+            print('메세지 송부 실패 - 서버 미연결')
+            return
+
         # 요청 메세지 전송
         dic_바디 = json.dumps(dic_바디) if not isinstance(dic_바디, str) else dic_바디
         await self.websocket.send(dic_바디)
@@ -148,8 +158,15 @@ class WebsocketAPIkiwoom:
             except websockets.ConnectionClosed:
                 # print('서버에 의한 종료')
                 self.b_연결상태 = False
-                self.b_동작중 = False
-                await self.websocket.close()
+                # 자동재접속 모드가 아니면 동작 종료 (자동재접속 모드는 ws_수신관리가 재접속 처리)
+                if not self.b_자동재접속:
+                    self.b_동작중 = False
+                return
+
+            except Exception as e:
+                # 개별 메세지 처리 오류 시 루프 유지 (전체 수신 중단 방지)
+                print(f'메세지수신 처리 오류 - {e}')
+                continue
 
     async def proc_실시간시세(self, res):
         """ REAL | 실시간시세 데이터 처리 """
@@ -180,10 +197,46 @@ class WebsocketAPIkiwoom:
             dic_바디 = dict(trnm='REMOVE', grp_no='1', refresh=s_기존유지, data=li_데이터)
         await self.ws_메세지송부(dic_바디=dic_바디)
 
+        # 재접속 재등록용 구독정보 관리
+        if not b_등록해지:
+            self.li_구독목록.append(dict(li_종목코드=li_종목코드, li_데이터타입=li_데이터타입))
+
         # 리턴 메세지 생성
         s_리턴메세지 = f'요청 - {li_데이터}'
 
         return s_리턴메세지
+
+    async def ws_수신관리(self):
+        """ 수신 대기 관리 - 연결 끊김 시 자동 재접속 및 구독 재등록 (실시간 수신용) """
+        while self.b_동작중:
+            # 미연결 시 재접속 및 구독 재등록
+            if not self.b_연결상태:
+                await self.ws_서버접속()
+                if not self.b_연결상태:
+                    print(f'재접속 실패 - {self.n_재접속대기}초 후 재시도')
+                    await asyncio.sleep(self.n_재접속대기)
+                    continue
+                await self.re_구독등록()
+
+            # 수신 대기 (연결 종료 시 리턴)
+            await self.ws_메세지수신()
+
+            # 예기치 않은 종료 시 재접속 대기 (정상 종료면 while 조건에서 탈출)
+            if self.b_동작중:
+                print(f'웹소켓 연결 종료 감지 - {self.n_재접속대기}초 후 재접속')
+                await asyncio.sleep(self.n_재접속대기)
+
+    async def re_구독등록(self):
+        """ 재접속 시 기존 구독 정보로 실시간 등록 재요청 """
+        # 기존 구독목록 스냅샷 후 초기화 (재등록 과정에서 중복 누적 방지)
+        li_구독_기존 = list(self.li_구독목록)
+        self.li_구독목록 = list()
+
+        # 구독 재등록
+        for dic_구독 in li_구독_기존:
+            await self.req_실시간등록(li_종목코드=dic_구독['li_종목코드'], li_데이터타입=dic_구독['li_데이터타입'])
+        if len(li_구독_기존) > 0:
+            print(f'구독 재등록 완료 - {len(li_구독_기존)}건')
 
 
 # noinspection SpellCheckingInspection,NonAsciiCharacters,PyPep8Naming,PyAttributeOutsideInit
