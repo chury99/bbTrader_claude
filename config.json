@@ -1,7 +1,7 @@
 {
     "folder_work" : {
-        "mac" : "/Users/ProjectWork/bbTrader",
-        "win" : "E:/ProjectWork/bbTrader"
+        "mac" : "/Volumes/extSSD4tb/WorksIn4tb/bbTrader_claude",
+        "win" : "E:/ProjectWork/bbTrader_claude"
     },
     "folder_log" : {
         "mac" : "/Users/chury99/Library/Mobile Documents/com~apple~CloudDocs/python_log",
@@ -12,15 +12,15 @@
         "win" : "C:/Users/user/PycharmProjects/api-kakao"
     },
     "folder_kiwoom" : {
-        "mac" : "/Users/chury99/PycharmProjects/bbTrader/xapi",
-        "win" : "C:/Users/user/PycharmProjects/bbTrader/xapi"
+        "mac" : "/Users/chury99/PycharmProjects/bbTrader_claude/xapi",
+        "win" : "C:/Users/user/PycharmProjects/bbTrader_claude/xapi"
     },
     "folder_aikey" : {
-        "mac" : "/Users/chury99/PycharmProjects/spTraderV2/xapi",
-        "win" : "C:/Users/user/PycharmProjects/spTraderV2/xapi"
+        "mac" : "/Users/chury99/PycharmProjects/bbTrader_claude/xapi",
+        "win" : "C:/Users/user/PycharmProjects/bbTrader_claude/xapi"
     },
     "path_파이썬" : {
-        "mac" : "/Users/chury99/PycharmProjects/bbTrader/.venv/bin/pyton",
+        "mac" : "/Users/chury99/PycharmProjects/bbTrader_claude/.venv/bin/pyton",
         "win" : "C:/Python313-64/python.exe"
     },
     "로그이름_trader" : "bb_trader",
