@@ -77,9 +77,18 @@ class TraderBot:
 
     async def exec_분봉조회(self):
         """ 대상종목의 3분봉 정보를 restapi로 조회 """
-        # 감시종목 불러오기
-        s_파일명 = max(파일 for 파일 in os.listdir(self.folder_감시종목)
-                    if '.pkl' in 파일 and re.findall(r'\d{8}', 파일)[0] <= self.s_오늘)
+        # 감시종목 불러오기 (수신 모듈이 파일 생성 전이면 대기 - 기동 순서 레이스 방지)
+        li_파일 = list()
+        for _ in range(60):
+            li_파일 = [파일 for 파일 in os.listdir(self.folder_감시종목)
+                     if '.pkl' in 파일 and re.findall(r'\d{8}', 파일)[0] <= self.s_오늘]
+            if len(li_파일) > 0:
+                break
+            await asyncio.sleep(1)
+        if len(li_파일) == 0:
+            self.make_로그('감시종목 파일 미존재 - 분봉조회 중단')
+            return
+        s_파일명 = max(li_파일)
         dic_감시종목 = pd.read_pickle(os.path.join(self.folder_감시종목, s_파일명))
         li_감시종목 = dic_감시종목.get('매매대상', list())
 

@@ -33,6 +33,8 @@ class WebsocketAPIkiwoom:
         self.b_자동재접속 = False       # 연결 끊김 시 자동 재접속 여부 (실시간 수신에서 True 설정)
         self.n_재접속대기 = 5           # 재접속 시도 간격 (초)
         self.li_구독목록 = list()       # 재접속 시 재등록할 구독 정보
+        self.event_로그인 = asyncio.Event()    # LOGIN 응답 수신 완료 이벤트 (등록 요청은 로그인 완료 후 송신)
+        self.n_로그인실패 = 0           # 연속 로그인 실패 횟수 (3회 이상 시 동작 종료)
 
         # queue 정의
         self.queue_매매 = asyncio.Queue()
@@ -68,6 +70,7 @@ class WebsocketAPIkiwoom:
         """ 서버에 연결 요청 """
         try:
             # 웹소켓 연결
+            self.event_로그인.clear()
             self.websocket = await websockets.connect(self.s_서버주소)
             self.b_연결상태 = True
 
@@ -76,7 +79,7 @@ class WebsocketAPIkiwoom:
             await self.ws_메세지송부(dic_바디=dic_바디)
 
         except Exception as e:
-            print(f'서버접속 실패 - {e}')
+            print(f'서버접속 실패 - {e}', file=sys.stderr)
             self.b_연결상태 = False
 
     async def ws_접속해제(self):
@@ -98,7 +101,7 @@ class WebsocketAPIkiwoom:
 
         # 연결 실패 시 전송 중단 (None.send() 방지)
         if not self.b_연결상태 or self.websocket is None:
-            print('메세지 송부 실패 - 서버 미연결')
+            print('메세지 송부 실패 - 서버 미연결', file=sys.stderr)
             return
 
         # 요청 메세지 전송
@@ -122,17 +125,25 @@ class WebsocketAPIkiwoom:
                 if s_서비스 == 'PING':
                     await self.ws_메세지송부(res)
 
-                # 결과 처리 - LOGIN (로그인: 실패 시 메세지 출력)
+                # 결과 처리 - LOGIN (성공 시 이벤트 set - 등록 요청 허용, 실패 시 재시도/종료)
                 elif s_서비스 == 'LOGIN':
                     if s_리턴코드 != 0:
-                        print(f'로그인 실패 - {res.get('return_msg')}')
-                        await self.ws_접속해제()
+                        self.n_로그인실패 += 1
+                        print(f'로그인 실패({self.n_로그인실패}회) - {res.get('return_msg')}', file=sys.stderr)
+                        if self.b_자동재접속 and self.n_로그인실패 < 3:
+                            await self.websocket.close()    # 연결만 종료 - 수신관리가 재접속
+                        else:
+                            await self.ws_접속해제()          # 반복 실패 - 동작 종료
+                    else:
+                        self.n_로그인실패 = 0
+                        self.event_로그인.set()
 
-                # 결과 처리 - REG, REMOVE (등록/해지: 실패 시 메세지 출력)
+                # 결과 처리 - REG, REMOVE (등록/해지: 실패해도 연결은 유지 - 전체 중단 방지)
                 elif s_서비스 in ['REG', 'REMOVE']:
                     if s_리턴코드 != 0:
-                        print(f'종목등록/해지 실패 - {s_서비스} - {res.get('return_msg')}')
-                        await self.ws_접속해제()
+                        print(f'종목등록/해지 실패 - {s_서비스} - {res.get('return_msg')}', file=sys.stderr)
+                        if not self.b_자동재접속:
+                            await self.ws_접속해제()
 
                 # 결과 처리 - REAL (실시간시세 - 데이터 처리 함수 호출)
                 elif s_서비스 == 'REAL':
@@ -150,10 +161,11 @@ class WebsocketAPIkiwoom:
                 elif s_서비스 == 'SYSTEM':
                     pass
 
-                # 기타 - 오류 메세지 후 중단
+                # 기타 - 오류 메세지 기록 (자동재접속 모드는 수신 유지, 그 외 중단)
                 else:
-                    print(f'미등록 서비스 - {s_서비스}')
-                    await self.ws_접속해제()
+                    print(f'미등록 서비스 - {s_서비스}', file=sys.stderr)
+                    if not self.b_자동재접속:
+                        await self.ws_접속해제()
 
             except websockets.ConnectionClosed:
                 # print('서버에 의한 종료')
@@ -165,7 +177,7 @@ class WebsocketAPIkiwoom:
 
             except Exception as e:
                 # 개별 메세지 처리 오류 시 루프 유지 (전체 수신 중단 방지)
-                print(f'메세지수신 처리 오류 - {e}')
+                print(f'메세지수신 처리 오류 - {e}', file=sys.stderr)
                 continue
 
     async def proc_실시간시세(self, res):
@@ -190,6 +202,13 @@ class WebsocketAPIkiwoom:
         li_데이터타입_코드 = [dic_데이터타입[타입] for 타입 in li_데이터타입]
         s_기존유지 = '1' if b_기존유지 else '0'
 
+        # 로그인 완료 대기 (로그인 전 등록 요청 시 서버 거부 - 재접속 직후 순서 보장)
+        try:
+            await asyncio.wait_for(self.event_로그인.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            print('실시간등록 실패 - 로그인 응답 타임아웃', file=sys.stderr)
+            return 'err_로그인타임아웃'
+
         # 등록 요청
         li_데이터 = [dict(item=li_종목코드, type=li_데이터타입_코드)]
         dic_바디 = dict(trnm='REG', grp_no='1', refresh=s_기존유지, data=li_데이터)
@@ -213,17 +232,18 @@ class WebsocketAPIkiwoom:
             if not self.b_연결상태:
                 await self.ws_서버접속()
                 if not self.b_연결상태:
-                    print(f'재접속 실패 - {self.n_재접속대기}초 후 재시도')
+                    print(f'재접속 실패 - {self.n_재접속대기}초 후 재시도', file=sys.stderr)
                     await asyncio.sleep(self.n_재접속대기)
                     continue
-                await self.re_구독등록()
+                # 재등록은 별도 태스크로 실행 - 수신 루프가 LOGIN 응답을 처리해야 등록이 가능하므로 병행 필수
+                asyncio.create_task(self.re_구독등록())
 
             # 수신 대기 (연결 종료 시 리턴)
             await self.ws_메세지수신()
 
             # 예기치 않은 종료 시 재접속 대기 (정상 종료면 while 조건에서 탈출)
             if self.b_동작중:
-                print(f'웹소켓 연결 종료 감지 - {self.n_재접속대기}초 후 재접속')
+                print(f'웹소켓 연결 종료 감지 - {self.n_재접속대기}초 후 재접속', file=sys.stderr)
                 await asyncio.sleep(self.n_재접속대기)
 
     async def re_구독등록(self):
@@ -236,7 +256,7 @@ class WebsocketAPIkiwoom:
         for dic_구독 in li_구독_기존:
             await self.req_실시간등록(li_종목코드=dic_구독['li_종목코드'], li_데이터타입=dic_구독['li_데이터타입'])
         if len(li_구독_기존) > 0:
-            print(f'구독 재등록 완료 - {len(li_구독_기존)}건')
+            print(f'구독 재등록 완료 - {len(li_구독_기존)}건', file=sys.stderr)
 
 
 # noinspection SpellCheckingInspection,NonAsciiCharacters,PyPep8Naming,PyAttributeOutsideInit
