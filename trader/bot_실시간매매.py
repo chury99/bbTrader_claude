@@ -51,6 +51,8 @@ class TraderBot:
         # 폴더 정의
         dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
         self.folder_감시종목 = dic_폴더정보['매수매도|감시종목']
+        self.folder_잔고 = dic_폴더정보['매수매도|종목잔고']
+        os.makedirs(self.folder_잔고, exist_ok=True)
         self.folder_서버 = ('/Volumes/extSSD4tb/80_Backup/10_python_backup/ProjectWork/spTraderV2'
                           if sys.platform == 'darwin' else '')
 
@@ -72,6 +74,7 @@ class TraderBot:
         self.dic_종목명 = dict()
         self.dic_지표 = dict()         # 종목코드: dict(버킷=deque[(초,매수,매도)], 첫초, 직전고가)
         self.dic_포지션 = dict()       # 종목코드: dict(상태, 수량, 매수가, 매수초, 진입횟수, 청산초, 주문초, 매도재시도)
+        self.path_포지션 = os.path.join(self.folder_잔고, f'dic_포지션_{self.s_오늘}.pkl')    # 재시작 복원용
 
         # 로그 기록
         self.make_로그(f'구동 시작 - 주문금액 {_T_주문금액:,}원, 최대보유 {_T_최대보유종목}종목')
@@ -109,6 +112,66 @@ class TraderBot:
 
         # 로그 기록
         self.make_로그(f'감시 {len(li_감시종목)}개 중 매매대상 {len(self.set_매매대상)}개 선정')
+
+    # -----------------------------------------------------------------
+    def _save_포지션(self):
+        """ 포지션 상태를 당일 파일로 저장 (재시작 복원용) """
+        try:
+            pd.to_pickle(self.dic_포지션, self.path_포지션)
+        except Exception as e:
+            print(f'포지션 저장 실패 - {e}', file=sys.stderr)
+
+    # -----------------------------------------------------------------
+    def restore_포지션(self):
+        """ 봇 재시작 시 포지션 복원 - 당일 포지션 파일과 계좌잔고 대조
+            (파일에 기록된 전략 포지션만 복원, 잔고에만 있는 수동 보유는 건드리지 않음) """
+        # 당일 포지션 파일 확인 (없으면 정상 기동 - 복원 불필요)
+        if not os.path.exists(self.path_포지션):
+            return
+        try:
+            dic_포지션_파일 = pd.read_pickle(self.path_포지션)
+        except Exception as e:
+            self.make_로그(f'포지션 파일 로딩 실패 - 복원 생략 - {e}')
+            return
+        if len(dic_포지션_파일) == 0:
+            return
+
+        # 계좌잔고 조회 (실제 보유 확인)
+        try:
+            dic_계좌잔고, df_종목별잔고 = self.restapi.tr_체결잔고요청()
+            dic_잔고 = (df_종목별잔고.set_index('종목코드')['현재잔고'].to_dict()
+                      if len(df_종목별잔고) > 0 else dict())
+        except Exception as e:
+            self.make_로그(f'잔고조회 실패 - 포지션 복원 생략 (수동 확인 필요) - {e}')
+            return
+
+        # 파일 기록과 잔고 대조 후 복원
+        li_복원, li_정리 = list(), list()
+        for s_종목코드, dic_기록 in dic_포지션_파일.items():
+            n_잔고수량 = int(dic_잔고.get(s_종목코드, 0))
+            b_보유기록 = dic_기록.get('상태') in ['매수중', '보유', '매도중'] and dic_기록.get('수량', 0) >= 0
+
+            # 기록상 보유(진행) + 실제 잔고 있음 -> 보유 복원 (수량은 실제 잔고 기준)
+            if b_보유기록 and n_잔고수량 > 0:
+                dic_기록.update(상태='보유', 수량=n_잔고수량, 매도재시도=0)
+                self.dic_포지션[s_종목코드] = dic_기록
+                self.set_매매대상.add(s_종목코드)    # 청산 감시를 위해 대상 유지
+                li_복원.append(f'{s_종목코드}({n_잔고수량}주)')
+
+            # 기록상 보유였으나 잔고 없음 -> 이미 청산됨 (진입횟수/청산이력은 유지)
+            else:
+                dic_기록.update(상태='없음', 수량=0)
+                self.dic_포지션[s_종목코드] = dic_기록
+                li_정리.append(s_종목코드)
+
+        # 잔고에만 있는 종목 - 전략 기록 없음 -> 수동 보유로 간주, 미개입 (로그만)
+        li_수동보유 = [코드 for 코드, 수량 in dic_잔고.items()
+                   if 수량 > 0 and 코드 not in dic_포지션_파일]
+
+        # 로그 기록
+        self.make_로그(f'포지션 복원 - 보유 {len(li_복원)}건 {li_복원}\n'
+                     f' - 청산확인 {len(li_정리)}건, 수동보유(미개입) {len(li_수동보유)}건 {li_수동보유}')
+        self._save_포지션()
 
     # -----------------------------------------------------------------
     async def exec_종목감시(self):
@@ -164,6 +227,7 @@ class TraderBot:
         if dic_포지션['상태'] == '매수중' and n_초 - dic_포지션['주문초'] > _T_주문타임아웃:
             self.make_로그(f'매수 체결확인 실패 - {s_종목코드} - 상태 초기화')
             dic_포지션['상태'] = '없음'
+            self._save_포지션()
         if dic_포지션['상태'] == '매도중' and n_초 - dic_포지션['주문초'] > _T_주문타임아웃:
             if dic_포지션['매도재시도'] < 3:
                 dic_포지션['매도재시도'] += 1
@@ -251,6 +315,7 @@ class TraderBot:
             dic_포지션['진입횟수'] += 1
             self.make_로그(f'매수주문 - {self.dic_종목명.get(s_종목코드, s_종목코드)}({s_종목코드}) '
                          f'{n_수량}주 @{n_현재가:,} (시장가)')
+            self._save_포지션()
         else:
             self.make_로그(f'매수주문 실패 - {s_종목코드} - {res}')
 
@@ -272,6 +337,7 @@ class TraderBot:
             dic_포지션.update(상태='매도중', 주문초=n_초)
             self.make_로그(f'매도주문({s_사유}) - {self.dic_종목명.get(s_종목코드, s_종목코드)}({s_종목코드}) '
                          f'{n_수량}주 (시장가)')
+            self._save_포지션()
         else:
             self.make_로그(f'매도주문 실패 - {s_종목코드} - {res}')
 
@@ -306,6 +372,7 @@ class TraderBot:
             dic_포지션['상태'] = '보유'
             self.make_로그(f'매수체결 - {self.dic_종목명.get(s_코드, s_코드)}({s_코드}) '
                          f'{n_체결량}주 @{n_체결가:,} (보유 {dic_포지션["수량"]}주)')
+            self._save_포지션()
 
         # 매도 체결 - 청산 확정
         elif s_매도수 == '매도' and dic_포지션['상태'] == '매도중':
@@ -318,12 +385,14 @@ class TraderBot:
                                 + pd.Timestamp.now().minute * 60 + pd.Timestamp.now().second)
                 self.make_로그(f'청산완료 - {self.dic_종목명.get(s_코드, s_코드)}({s_코드}) '
                              f'수익률 {n_수익률:+.2f}% (비용 전)')
+            self._save_포지션()
 
     # -----------------------------------------------------------------
     async def run_실시간매매(self):
         """ exec 함수들을 비동기로 구동 """
-        # 매매대상 선정 후 감시 시작
+        # 매매대상 선정 및 포지션 복원(재시작 대비) 후 감시 시작
         await self.set_매매대상선정()
+        self.restore_포지션()
         await asyncio.gather(
             self.exec_종목감시()
         )
