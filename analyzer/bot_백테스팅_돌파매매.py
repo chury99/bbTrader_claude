@@ -13,16 +13,17 @@ from matplotlib.gridspec import GridSpec
 
 import analyzer, ut
 
-# 진입 필터 임계값 (환경변수로 조정 가능 - 튜닝용, 스윕 결과 최적 구간값 기본 적용)
+# 진입 필터 임계값 (환경변수로 조정 가능 - 최근90일 가중 스윕 최적값 기본 적용)
+# 주의: 24조합 전체가 음수 기대치 - 아래는 "최소 손실" 조합이며 실전 투입 가능 수준 아님 (2026-07 검증)
 _P_기울기 = float(os.environ.get('BT_SLOPE', '0.0'))         # MA20 상승률 최소값 (%)
 _P_확장max = float(os.environ.get('BT_EXTMAX', '3.0'))       # 종가-MA20 이격 상한 (%)
-_P_거래량배수 = float(os.environ.get('BT_VOLMULT', '2.0'))    # 거래량/거래량MA20 최소 배수
+_P_거래량배수 = float(os.environ.get('BT_VOLMULT', '3.0'))    # 거래량/거래량MA20 최소 배수
 
 # 청산 파라미터 (ATR 배수, 환경변수로 조정 가능)
-_E_손절 = float(os.environ.get('BT_STOP', '2.0'))           # 손절 = 매수가 - N*ATR
+_E_손절 = float(os.environ.get('BT_STOP', '1.0'))           # 손절 = 매수가 - N*ATR
 _E_목표 = float(os.environ.get('BT_TARGET', '1.0'))         # 목표(트레일링 활성) = 매수가 + N*ATR
-_E_트레일링 = float(os.environ.get('BT_TRAIL', '1.0'))       # 트레일링 = 매수후고가 - N*ATR
-_E_본전 = float(os.environ.get('BT_BREAKEVEN', '0.5'))       # 본전스톱: 고가가 +N*ATR 도달 시 손절을 매수가로 상향 (0=미사용, 스윕결과 0.5 채택)
+_E_트레일링 = float(os.environ.get('BT_TRAIL', '0.5'))       # 트레일링 = 매수후고가 - N*ATR
+_E_본전 = float(os.environ.get('BT_BREAKEVEN', '0.5'))       # 본전스톱: 고가가 +N*ATR 도달 시 손절을 매수가로 상향 (0=미사용)
 
 
 # noinspection NonAsciiCharacters,SpellCheckingInspection,PyPep8Naming,PyTypeChecker
@@ -100,7 +101,9 @@ class AnalyzerBot:
 
             # 추가 데이터 불러오기 - 전일 데이터 기준으로 당일 후보종목 생성
             li_일자 = [re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_소스) if '.pkl' in 파일]
-            s_전일 = max(일자 for 일자 in li_일자 if 일자 < s_일자)
+            li_전일후보 = [일자 for 일자 in li_일자 if 일자 < s_일자]
+            if len(li_전일후보) == 0: continue    # 첫 일자는 전일 데이터 미존재 - 스킵
+            s_전일 = max(li_전일후보)
             path_거래대상 = os.path.join(self.folder_서버, '데이터', '대상종목', f'df_대상종목_{s_전일}.pkl')
             path_조회순위 = os.path.join(self.folder_서버, '데이터', '조회순위_tr', f'df_조회순위_{s_전일}.csv')
             df_거래대상 = pd.read_pickle(path_거래대상) if os.path.exists(path_거래대상) else None
@@ -739,7 +742,8 @@ class AnalyzerBot:
                 if (b_골든크로스 and b_추세필터 and b_기울기필터 and b_미확장필터 and b_거래량필터
                         and b_시간필터 and n_이전매수횟수 < 1):
                     # 진입 체결 - 신호 확정(직전봉 종가) 직후, 현재 3분봉의 첫 1분봉 시가로 진입
-                    s_다음분봉시간 = min(시간 for 시간 in df_3분봉['시간'].values if 시간 > s_분봉시간)
+                    li_이후시간 = [시간 for 시간 in df_3분봉['시간'].values if 시간 > s_분봉시간]
+                    s_다음분봉시간 = min(li_이후시간) if len(li_이후시간) > 0 else '99:99:99'    # 마지막 봉이면 데이터 끝까지
                     df_1분봉_대상 = df_1분봉[(df_1분봉['시간'] >= s_분봉시간) & (df_1분봉['시간'] < s_다음분봉시간)]
 
                     # 진입가 확정
@@ -769,7 +773,8 @@ class AnalyzerBot:
                 n_손절적용 = max(n_손절기준가, n_매수가) if b_본전도달 else n_손절기준가
 
                 # 1분봉 정보 필터링 - 3분봉 1개 봉, 매수 이후
-                s_다음분봉시간 = min(시간 for 시간 in df_3분봉['시간'].values if 시간 > s_분봉시간)
+                li_이후시간 = [시간 for 시간 in df_3분봉['시간'].values if 시간 > s_분봉시간]
+                s_다음분봉시간 = min(li_이후시간) if len(li_이후시간) > 0 else '99:99:99'    # 마지막 봉이면 데이터 끝까지
                 df_1분봉_대상 = (df_1분봉[(df_1분봉['시간'] >= s_분봉시간) & (df_1분봉['시간'] < s_다음분봉시간)
                                     & (df_1분봉['시간'] > s_매수시점)] if n_종가 > n_시가 else
                              df_1분봉[(df_1분봉['시간'] >= s_분봉시간) & (df_1분봉['시간'] < s_다음분봉시간)
