@@ -83,6 +83,21 @@ class LauncherAnalyzer:
         else:
             self.send_카톡_오류발생(s_프로세스명=p_봇.name, n_오류코드=p_봇.exitcode)
 
+    def run_백테스팅_틱기반매수세(self):
+        """ 틱기반매수세 백테스팅 모듈 실행 - 일봉수집 완료 후 진행 (당일 틱 데이터 검증) """
+        # 프로세스 정의
+        p_봇 = mp.Process(target=analyzer.bot_백테스팅_틱기반매수세.run, name='bot_백테스팅_틱기반매수세')
+
+        # 프로세스 실행 및 종료 대기
+        p_봇.start()
+        p_봇.join()
+
+        # 로그 기록
+        if p_봇.exitcode <= 0:
+            self.make_로그(f'{p_봇.name} 구동 완료')
+        else:
+            self.send_카톡_오류발생(s_프로세스명=p_봇.name, n_오류코드=p_봇.exitcode)
+
     def ut_파일정리(self):
         """ 파일manager 모듈 실행 """
         # 프로세스 정의
@@ -113,6 +128,7 @@ def run():
     l = LauncherAnalyzer()
     l.run_일봉수집()
     l.run_종목추천()
+    l.run_백테스팅_틱기반매수세()
     l.ut_파일정리()
 
 
