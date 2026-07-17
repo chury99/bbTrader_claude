@@ -36,8 +36,8 @@ class AnalyzerBot:
         os.makedirs(self.folder_분석, exist_ok=True)
 
         # 추가 폴더 정의
-        dic_aikey = json.load(open(os.path.join(dic_config['folder_aikey'], 'aikey.json')))
-        self.api키_gemini = dic_aikey.get('gemini', dict()).get('apikey', None)
+        # dic_aikey = json.load(open(os.path.join(dic_config['folder_aikey'], 'aikey.json')))
+        # self.api키_gemini = dic_aikey.get('gemini', dict()).get('apikey', None)
         self.n_서버파일보관일수 = int(dic_config['파일보관기간(일)_analyzer'])
 
         # 기준정보 정의
