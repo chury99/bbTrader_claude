@@ -255,8 +255,11 @@ class ChartMaker:
         ax = self._make_캔들차트(ax=ax, df_차트=df_3분봉, s_봉구분='분봉', s_차트구분='캔들')
 
         # 뷰 설정
-        ax.set_title(f'[3분봉] {s_종목명}({s_종목코드}) | {s_매도사유}({n_수익률:,.1f}%)',
-                          loc='left', fontsize=10, fontweight='bold')
+        n_매수금액, n_손익금 = dic_거래정보.get('매수금액'), dic_거래정보.get('손익금')
+        s_타이틀 = f'[3분봉] {s_종목명}({s_종목코드}) | {s_매도사유}({n_수익률:,.1f}%)'
+        if n_매수금액 is not None and n_손익금 is not None:   # 예수금 사이징 전략에서만 금액 표기
+            s_타이틀 += f' | 매수 {int(n_매수금액):,}원 / 손익 {int(n_손익금):+,}원'
+        ax.set_title(s_타이틀, loc='left', fontsize=10, fontweight='bold')
         ax.tick_params(length=0, labelsize=8)
         # ax.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=False))
         # ax.set_xticks([s_매수시점_분봉, s_매도시점_분봉], labels=[s_매수시점, s_매도시점])
