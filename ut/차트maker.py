@@ -7,7 +7,7 @@ import multiprocessing as mp
 
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, FuncFormatter
 from fontTools.varLib.models import nonNone
 from pandas.core.methods.selectn import SelectNSeries
 from tqdm import tqdm
@@ -118,6 +118,19 @@ class ChartMaker:
                     va='top', ha='left', transform=ax_메인축.transAxes)
         ax_메인축.text(0.85, 0.91, f'매매 {n_누적매매:,.0f}', fontsize=9, fontweight='bold', color=self.dic_색상['회색'],
                     va='top', ha='left', transform=ax_메인축.transAxes)
+
+        # 거래후예수금 (예수금 기반 리스크 사이징 - 해당 컬럼이 있는 전략에서만 표시)
+        if '거래후예수금' in df_매매일보.columns:
+            ary_거래후예수금 = df_매매일보['거래후예수금'].values
+            ax_예수금 = ax.twinx()
+            ax_예수금.spines['right'].set_position(('outward', 42))
+            ax_예수금.plot(li_일자, ary_거래후예수금, label='거래후예수금', lw=2, alpha=0.9, color=self.dic_색상['파랑'])
+            ax_예수금.set_yticks([min(ary_거래후예수금), max(ary_거래후예수금)])
+            ax_예수금.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x / 1e4:,.0f}만'))
+            ax_예수금.tick_params(length=0, labelsize=7)
+            ax_예수금.legend(loc='lower left', fontsize=8)
+            ax_메인축.text(0.68, 0.84, f'예수금 {ary_거래후예수금[-1]:,.0f}', fontsize=9, fontweight='bold',
+                        color=self.dic_색상['파랑'], va='top', ha='left', transform=ax_메인축.transAxes)
 
         return ax
 

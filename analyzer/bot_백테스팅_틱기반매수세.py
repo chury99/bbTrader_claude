@@ -25,6 +25,10 @@ _T_차트최대 = int(os.environ.get('TB_CHARTMAX', '30'))        # 매매일보
 # 종목선정 (전일 일봉 기준)
 _T_최소거래대금 = float(os.environ.get('TB_MINVALUE', '5000'))  # 전일 거래대금 하한 (백만원, 5000=50억)
 _T_최소가격 = float(os.environ.get('TB_MINPRICE', '1000'))     # 전일 종가 하한 (원, 저가주 제외)
+# 자금관리 (실시간매매 bot_실시간매매와 동일한 리스크 기반 사이징)
+_T_초기예수금 = int(os.environ.get('TB_INITCASH', '10000000'))  # 백테스팅 시작 예수금 (원, 실매매는 계좌 조회)
+_T_투입비율 = float(os.environ.get('TB_CHUNK_PCT', '50.0'))     # 진입 시 남은 예수금 중 투입 비율 % (2덩어리 분할=50%)
+_T_리스크비율 = float(os.environ.get('TB_RISK_PCT', '2.0'))     # 덩어리 대비 감내 리스크 예산 % (손절 시 최대 손실, TB_STOP과 별개)
 
 
 # noinspection NonAsciiCharacters,SpellCheckingInspection,PyPep8Naming,PyTypeChecker,PyAttributeOutsideInit
@@ -286,6 +290,12 @@ class AnalyzerBot:
             df_누적거래 = (pd.concat(li_df누적거래).sort_values(['일자', '매수시점']) if len(li_df누적거래) > 0
                        and sum(len(df) for df in li_df누적거래) > 0 else pd.DataFrame())
 
+            # 예수금 기반 리스크 사이징 시뮬레이션 (실시간매매와 동일 규칙, 일자 이월=복리)
+            df_누적거래, dic_종료예수금 = self._simulate_예수금(df_누적거래)
+            if not df_결과정리.empty:
+                df_결과정리['거래후예수금'] = (df_결과정리['일자'].map(dic_종료예수금)
+                                        .ffill().fillna(_T_초기예수금).astype('int64'))
+
             # 데이터 저장
             self.tool.df저장(df=df_결과정리, path=os.path.join(folder_타겟, f'{file_타겟}_{s_일자}'))
             os.makedirs(folder := f'{folder_타겟}_누적거래', exist_ok=True)
@@ -310,6 +320,72 @@ class AnalyzerBot:
                          f' - 누적기대치 {n_누적기대치:,.2f}, 누적수익 {n_누적총손익:,.0f}%\n'
                          f' - 누적승률 {n_누적승률:,.0f}% (총 {n_누적매매}, 승 {n_누적수익매매}, 패 {n_누적손실매매})\n'
                          f' - 누적손익비 {n_누적손익비:,.1f} (평균수익 {n_누적평균수익:,.0f}%, 평균손실 {n_누적평균손실:,.0f}%)')
+
+    # -----------------------------------------------------------------
+    def _simulate_예수금(self, df_누적거래):
+        """ 전체 거래를 시간순 재생하여 예수금 기반 리스크 사이징 적용 (실시간매매 bot_실시간매매와 동일 규칙)
+            - 덩어리 = 예수금 × 투입비율%(50%)          : 진입마다 남은 예수금의 절반
+            - 매수금액 = 덩어리 × (리스크비율 / 손절률)  : 손절 시 손실이 리스크예산(덩어리×2%) 이내
+            - 예수금은 일자를 넘어 이월(복리). 청산 시 원금+손익 회수 후 다음 진입 사이징에 반영
+            - 당일 전량청산(오버나이트 없음) 전제 → 일자별 종료예수금 = 초기예수금 + 누적손익금
+            반환: (수량/매수금액/손익금/진입후예수금 컬럼 추가 df, {일자: 종료예수금}) """
+        if df_누적거래.empty:
+            return df_누적거래, dict()
+        df = df_누적거래.sort_values(['일자', '매수시점']).reset_index(drop=True).copy()
+        n = len(df)
+        ary_일자 = df['일자'].astype(str).values
+        ary_매수시점 = df['매수시점'].astype(str).values
+        ary_매도시점 = df['매도시점'].astype(str).values
+        ary_매수가 = df['매수가'].astype(float).values
+        ary_수익률 = df['수익률'].astype(float).values
+
+        ary_수량 = np.zeros(n, dtype='int64')
+        ary_매수금액 = np.zeros(n, dtype='int64')
+        ary_손익금 = np.zeros(n, dtype='int64')
+        ary_진입후예수금 = np.zeros(n, dtype='int64')
+
+        n_예수금 = float(_T_초기예수금)
+        n_배수 = (_T_리스크비율 / _T_손절) if _T_손절 > 0 else 1.0
+        li_오픈 = list()   # (정산키='일자+매도시각', 실매수금액, 수익률)
+
+        for i in range(n):
+            s_진입키 = ary_일자[i] + ary_매수시점[i]
+            # 이 진입 이전에 청산된 포지션 회수 (원금 + 손익, 문자열키가 시간순 정렬)
+            li_잔여 = list()
+            for s_청산키, n_금액, n_ret in li_오픈:
+                if s_청산키 <= s_진입키:
+                    n_예수금 += n_금액 * (1 + n_ret / 100)
+                else:
+                    li_잔여.append((s_청산키, n_금액, n_ret))
+            li_오픈 = li_잔여
+
+            # 리스크 사이징
+            n_매수가 = ary_매수가[i]
+            n_목표금액 = n_예수금 * _T_투입비율 / 100 * n_배수
+            n_수량 = int(n_목표금액 // n_매수가) if n_매수가 > 0 else 0
+            if n_수량 * n_매수가 > n_예수금:                    # 예수금 한도 초과 방지
+                n_수량 = int(n_예수금 // n_매수가) if n_매수가 > 0 else 0
+            if n_수량 <= 0:                                    # 예수금 부족 - 미체결
+                ary_진입후예수금[i] = int(n_예수금)
+                continue
+
+            n_실매수금액 = n_수량 * n_매수가
+            n_예수금 -= n_실매수금액
+            li_오픈.append((ary_일자[i] + ary_매도시점[i], n_실매수금액, ary_수익률[i]))
+            ary_수량[i] = n_수량
+            ary_매수금액[i] = int(n_실매수금액)
+            ary_손익금[i] = int(n_실매수금액 * ary_수익률[i] / 100)
+            ary_진입후예수금[i] = int(n_예수금)
+
+        df['수량'] = ary_수량
+        df['매수금액'] = ary_매수금액
+        df['손익금'] = ary_손익금
+        df['진입후예수금'] = ary_진입후예수금   # 매수 직후 잔여 예수금 (참고용)
+
+        # 일자별 종료예수금 = 초기예수금 + 누적손익금 (당일 원금 전량 회수 전제)
+        sri_일손익 = df.groupby('일자')['손익금'].sum().sort_index()
+        dic_종료예수금 = (_T_초기예수금 + sri_일손익.cumsum()).astype('int64').to_dict()
+        return df, dic_종료예수금
 
     # -----------------------------------------------------------------
     def _load_틱(self, s_일자):
