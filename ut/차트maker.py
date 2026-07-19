@@ -250,6 +250,7 @@ class ChartMaker:
         s_매도시점_분봉 = pd.Timestamp(s_매도시점).floor(f'3min').strftime('%H:%M')
         s_등장시간_분봉 = pd.Timestamp(s_등장시간).floor(f'3min').strftime('%H:%M') if s_등장시간 > '09:00:00' else '09:00'
         df_3분봉 = dic_거래정보.get('df_3분봉', pd.DataFrame())
+        df_3분봉 = self._reindex_분봉(df_3분봉)   # 결측 시간대를 빈 봉으로 채워 연속 시간축 유지
 
         # 차트 생성
         ax = self._make_캔들차트(ax=ax, df_차트=df_3분봉, s_봉구분='분봉', s_차트구분='캔들')
@@ -276,6 +277,21 @@ class ChartMaker:
         ax.legend(loc='upper right', fontsize=8)
 
         return ax
+
+    @staticmethod
+    def _reindex_분봉(df_분봉, s_시작='09:00:00', s_종료='15:30:00', s_주기='3min'):
+        """ 3분봉을 장 시간(09:00~15:30) 연속 격자로 reindex - 결측 시간대를 빈 봉(NaN)으로 채움.
+            중간 데이터 공백을 붕괴시키지 않고 빈칸으로 표시 + 정시 눈금 정렬(격자 1시간 간격) 용도 """
+        if df_분봉 is None or len(df_분봉) == 0 or '시간' not in df_분봉.columns:
+            return df_분봉
+        ary_격자 = pd.date_range(f'2000-01-01 {s_시작}', f'2000-01-01 {s_종료}',
+                               freq=s_주기).strftime('%H:%M:00')
+        df = df_분봉.drop_duplicates('시간').set_index('시간').reindex(ary_격자)
+        # 종목 식별 컬럼은 상수라 채워줌 (OHLCV·이평은 결측 유지 → 빈 봉)
+        for s_컬럼 in ['일자', '종목코드', '종목명']:
+            if s_컬럼 in df.columns:
+                df[s_컬럼] = df_분봉[s_컬럼].iloc[0]
+        return df.reset_index(names='시간')
 
     def _make_캔들차트(self, ax, df_차트, s_봉구분, s_차트구분, b_legend=True):
         """ df로 입력받은 일봉 데이터로 차트 생성하여 리턴 """
