@@ -13,8 +13,10 @@ import ut, xapi
 
 # 매수세 전략 파라미터 (bot_백테스팅_틱기반매수세와 동일 - 환경변수로 동기 조정)
 # 진입
-_T_순매수비율 = float(os.environ.get('TB_RATIO', '0.4'))      # 60초 순매수비율 임계값 (매수세 형성)
-_T_거래강도 = float(os.environ.get('TB_INT', '5.0'))          # 직전 5분 대비 60초 거래량 배수
+_T_순매수비율 = float(os.environ.get('TB_RATIO', '0.4'))      # 60초 순매수비율 임계값 (매수세 형성) - 높이면 쏠림=늦은진입, 0.4 유지
+_T_거래강도 = float(os.environ.get('TB_INT', '5.0'))          # 직전 5분 대비 60초 거래량 배수 (상대 서지)
+_T_최소거래량 = int(os.environ.get('TB_MINVOL60', '10000'))    # 60초 절대 거래량 바닥 (주) - 얇은종목 '살짝 흔들림' 배제
+_T_단주 = int(os.environ.get('TB_MINQTY', '2'))              # 단주 필터: |틱거래량| <= 값이면 매수세 계산서 제외 (흐름조작 배제)
 _T_이격최소 = float(os.environ.get('TB_DIST', '5.0'))         # 당일고가 대비 최소 이격 % (눌림 필터)
 _T_일최대거래 = int(os.environ.get('TB_MAXPERDAY', '2'))       # 종목당 1일 최대 진입 횟수
 _T_쿨다운 = int(os.environ.get('TB_COOLDOWN', '600'))         # 청산 후 재진입 대기 (초)
@@ -276,9 +278,9 @@ class TraderBot:
                 self._judge_바(s_종목코드=s_종목코드, dic_지표=dic_지표, n_완결초=n_완결초, n_주문참고가=n_현재가)
             dic_지표['판정초'] = n_초 - 1
 
-        # 윈도우 버킷 업데이트 (초 단위 합산)
-        n_매수량 = n_거래량 if n_거래량 > 0 else 0
-        n_매도량 = -n_거래량 if n_거래량 < 0 else 0
+        # 윈도우 버킷 업데이트 (초 단위 합산) - 단주(|거래량|<=_T_단주)는 매수세서 제외 (흐름조작 배제)
+        n_매수량 = n_거래량 if n_거래량 > _T_단주 else 0
+        n_매도량 = -n_거래량 if n_거래량 < -_T_단주 else 0
         if len(buk) > 0 and buk[-1][0] == n_초:
             buk[-1][1] += n_매수량
             buk[-1][2] += n_매도량
@@ -324,6 +326,7 @@ class TraderBot:
             n_보유종목수 = sum(1 for p in self.dic_포지션.values() if p['상태'] in ['매수중', '보유', '매도중'])
             b_진입 = ((n_순매수비율 > _T_순매수비율)
                     and (n_거래강도 > _T_거래강도)
+                    and (n_전체60 >= _T_최소거래량)      # 절대거래량 바닥 (얇은종목 흔들림 배제)
                     and (n_이격률 >= _T_이격최소)
                     and (n_완결초 < self.n_장마감초)
                     and (dic_포지션['진입횟수'] < _T_일최대거래)

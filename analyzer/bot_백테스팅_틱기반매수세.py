@@ -10,9 +10,11 @@ from matplotlib.gridspec import GridSpec
 import ut
 
 # 매수세 전략 파라미터 (환경변수로 조정 가능)
-# 진입 (분석 근거: 눌림 5%+ 구간에서만 신호 지속, 강도-수익 단조 관계)
-_T_순매수비율 = float(os.environ.get('TB_RATIO', '0.4'))      # 60초 순매수비율 임계값 (매수세 형성)
-_T_거래강도 = float(os.environ.get('TB_INT', '5.0'))          # 직전 5분 대비 60초 거래량 배수
+# 진입 (분석 근거: 눌림 5%+ 구간에서만 신호 지속 / 절대거래량 바닥이 '진짜 상승'과 노이즈를 가름)
+_T_순매수비율 = float(os.environ.get('TB_RATIO', '0.4'))      # 60초 순매수비율 임계값 (매수세 형성) - 높이면 오히려 쏠림=늦은진입, 0.4 유지
+_T_거래강도 = float(os.environ.get('TB_INT', '5.0'))          # 직전 5분 대비 60초 거래량 배수 (상대 서지)
+_T_최소거래량 = int(os.environ.get('TB_MINVOL60', '10000'))    # 60초 절대 거래량 바닥 (주) - 얇은종목 '살짝 흔들림' 배제, 진짜 상승만 진입
+_T_단주 = int(os.environ.get('TB_MINQTY', '2'))              # 단주 필터: |틱거래량| <= 값이면 매수세 계산서 제외 (흐름조작 배제)
 _T_이격최소 = float(os.environ.get('TB_DIST', '5.0'))         # 당일고가 대비 최소 이격 % (눌림 필터)
 _T_일최대거래 = int(os.environ.get('TB_MAXPERDAY', '2'))       # 종목당 1일 최대 진입 횟수
 _T_쿨다운 = int(os.environ.get('TB_COOLDOWN', '600'))         # 청산 후 재진입 대기 (초)
@@ -476,9 +478,10 @@ class AnalyzerBot:
         if len(df_종목) < 500:
             return pd.DataFrame()
 
-        # 1초봉 집계 (벡터)
-        df_매수 = df_종목.loc[df_종목['거래량'] > 0].groupby('초')['거래량'].sum()
-        df_매도 = -df_종목.loc[df_종목['거래량'] < 0].groupby('초')['거래량'].sum()
+        # 1초봉 집계 (벡터) - 매수세는 단주(|거래량|<=_T_단주) 제외한 유효틱만, 가격/고가는 전체틱
+        df_유효 = df_종목.loc[df_종목['거래량'].abs() > _T_단주]
+        df_매수 = df_유효.loc[df_유효['거래량'] > 0].groupby('초')['거래량'].sum()
+        df_매도 = -df_유효.loc[df_유효['거래량'] < 0].groupby('초')['거래량'].sum()
         sri_가격 = df_종목.groupby('초')['현재가'].last()
         sri_당일고가 = df_종목.groupby('초')['고가'].last()
 
@@ -494,15 +497,17 @@ class AnalyzerBot:
         sri_전체 = df_1초['매수량'] + df_1초['매도량']
         sri_순매수60 = (df_1초['매수량'] - df_1초['매도량']).rolling(60).sum()
         sri_전체60 = sri_전체.rolling(60).sum()
+        df_1초['전체60'] = sri_전체60
         df_1초['순매수비율'] = sri_순매수60 / sri_전체60.replace(0, np.nan)
         sri_기준거래량 = sri_전체.rolling(300).sum().shift(60) / 5
         df_1초['거래강도'] = sri_전체60 / sri_기준거래량.replace(0, np.nan)
         df_1초['이격률'] = (df_1초['high'].shift(1) - df_1초['price']) / df_1초['high'].shift(1) * 100
         df_1초['변동폭300'] = df_1초['price'].rolling(300).max() - df_1초['price'].rolling(300).min()
 
-        # 신호 마스크 (벡터)
+        # 신호 마스크 (벡터) - 절대거래량 바닥(전체60>=_T_최소거래량) 추가로 얇은종목 흔들림 배제
         n_웜업 = ary_초[0] + 360
         ary_진입 = ((df_1초['순매수비율'] > _T_순매수비율) & (df_1초['거래강도'] > _T_거래강도)
+                  & (df_1초['전체60'] >= _T_최소거래량)
                   & (df_1초.index > n_웜업) & (df_1초.index < self.n_장마감초)
                   & (df_1초['이격률'] >= _T_이격최소)).fillna(False).values
         ary_소멸 = (df_1초['순매수비율'] < 0).fillna(False).values
