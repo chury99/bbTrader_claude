@@ -38,7 +38,7 @@ class ChartMaker:
         self.dic_색상 = dict(파랑='C0', 주황='C1', 녹색='C2', 빨강='C3', 보라='C4',
                            고동='C5', 분홍='C6', 회색='C7', 올리브='C8', 하늘='C9')
 
-    def ax_누적기대치(self, ax, df_매매일보):
+    def ax_누적기대치(self, ax, df_매매일보, n_기준예수금=None):
         """ 입력된 데이터 기준으로 기대수익 그래프 생성 후 리턴 """
         # 데이터 정의
         li_일자 = [f'{일자[4:6]}-{일자[6:8]}' for 일자 in df_매매일보['일자']]
@@ -125,7 +125,12 @@ class ChartMaker:
             ax_예수금 = ax.twinx()
             ax_예수금.spines['right'].set_position(('outward', 42))
             ax_예수금.plot(li_일자, ary_거래후예수금, label='거래후예수금', lw=2, alpha=0.9, color=self.dic_색상['파랑'])
-            ax_예수금.set_yticks([min(ary_거래후예수금), max(ary_거래후예수금)])
+            # 초기자본(기준예수금)을 y축 원점으로 고정 - 원점 위=수익, 아래=손실 즉시 판별
+            n_기준 = float(n_기준예수금) if n_기준예수금 is not None else float(ary_거래후예수금[0])
+            n_편차 = max(abs(ary_거래후예수금.max() - n_기준), abs(ary_거래후예수금.min() - n_기준), n_기준 * 0.01)
+            ax_예수금.set_ylim(n_기준 - n_편차 * 1.15, n_기준 + n_편차 * 1.15)   # 기준을 정중앙(원점)에
+            ax_예수금.axhline(n_기준, lw=1, ls='--', alpha=0.6, color=self.dic_색상['파랑'])
+            ax_예수금.set_yticks([n_기준 - n_편차, n_기준, n_기준 + n_편차])
             ax_예수금.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x / 1e4:,.0f}만'))
             ax_예수금.tick_params(length=0, labelsize=7)
             ax_예수금.legend(loc='lower left', fontsize=8)

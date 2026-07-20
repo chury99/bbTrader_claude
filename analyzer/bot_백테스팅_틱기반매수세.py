@@ -652,14 +652,14 @@ class AnalyzerBot:
             # 매매일보 df 생성
             df_매매일보 = (pd.DataFrame(li_dic매매일보).set_index('일자', drop=False).sort_index()
                        if len(li_dic매매일보) > 0 else pd.DataFrame())
-            df_당일거래 = df_누적거래.loc[df_누적거래['일자'] == s_일자].copy().sort_values(['종목코드', '매수시점']).reset_index(drop=True)
+            df_당일거래 = df_누적거래.loc[df_누적거래['일자'] == s_일자].copy().sort_values(['매수시점', '종목코드']).reset_index(drop=True)
             df_당일거래['매도사유'] = df_당일거래[['손절터치', '소멸청산', '타임아웃']].idxmax(axis=1).where(
                                     df_당일거래[['손절터치', '소멸청산', '타임아웃']].any(axis=1))
 
             # 개별 차트 대상 제한 - 거래 과다 시 |수익률| 상위만 (파일 과대 방지)
             if len(df_당일거래) > _T_차트최대:
                 idx_차트 = df_당일거래['수익률'].abs().sort_values(ascending=False).index[:_T_차트최대]
-                df_차트거래 = (df_당일거래.loc[idx_차트].sort_values(['종목코드', '매수시점']).reset_index(drop=True))
+                df_차트거래 = (df_당일거래.loc[idx_차트].sort_values(['매수시점', '종목코드']).reset_index(drop=True))
             else:
                 df_차트거래 = df_당일거래
 
@@ -671,7 +671,7 @@ class AnalyzerBot:
             ax_누적기대치 = fig.add_subplot(gs[0, 0])
             ax_mfe산점도 = fig.add_subplot(gs[0, 1])
             ax_거래별mfe = fig.add_subplot(gs[0, 2])
-            self.chart.ax_누적기대치(ax=ax_누적기대치, df_매매일보=df_매매일보)
+            self.chart.ax_누적기대치(ax=ax_누적기대치, df_매매일보=df_매매일보, n_기준예수금=_T_초기예수금)
             self.chart.ax_mfe산점도(ax=ax_mfe산점도, df_누적거래=df_누적거래)
             self.chart.ax_거래별mfe(ax=ax_거래별mfe, df_누적거래=df_누적거래)
 
