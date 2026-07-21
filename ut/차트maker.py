@@ -119,25 +119,36 @@ class ChartMaker:
                     va='top', ha='left', transform=ax_메인축.transAxes)
 
         # 거래후예수금 (예수금 기반 리스크 사이징 - 해당 컬럼이 있는 전략에서만 표시)
-        # 일별 회색 막대로 표시 (기존 일간기대치 막대 대체) - 기준예수금 라인 위=수익, 아래=손실
+        # 꺾은선 = 거래후예수금(기준예수금 정중앙) / 회색 막대 = 일별 손익 (0 원점 - 위=수익, 아래=손실)
         if '거래후예수금' in df_매매일보.columns:
-            ary_거래후예수금 = df_매매일보['거래후예수금'].values
+            ary_거래후예수금 = df_매매일보['거래후예수금'].values.astype(float)
+            n_기준 = float(n_기준예수금) if n_기준예수금 is not None else float(ary_거래후예수금[0])
+
+            # 일별 손익 막대 (전일 거래후예수금 대비 증감, 첫날은 기준예수금 대비)
+            li_일별손익 = [예수금 - 전일 for 예수금, 전일 in zip(ary_거래후예수금, [n_기준] + list(ary_거래후예수금[:-1]))]
+            ax_손익 = ax.twinx()
+            n_손익최대 = max(max(abs(손익) for 손익 in li_일별손익), 1.0)
+            ax_손익.set_ylim(-n_손익최대 * 1.15, n_손익최대 * 1.15)   # 0을 정중앙(원점)에 - 메인축 0선과 정렬
+            ax_손익.bar(li_일자, li_일별손익, label='일별손익', alpha=0.4, color=self.dic_색상['회색'])
+            ax_손익.set_yticks([])
+            ax_손익.set_zorder(ax_메인축.get_zorder() - 1)   # 막대를 라인 뒤로 (배경)
+            ax_메인축.patch.set_visible(False)              # 메인축 배경이 막대를 가리지 않도록
+
+            # 거래후예수금 꺾은선 - 초기자본(기준예수금)을 y축 정중앙으로 고정 (위=수익, 아래=손실)
             ax_예수금 = ax.twinx()
             ax_예수금.spines['right'].set_position(('outward', 42))
-            ax_예수금.bar(li_일자, ary_거래후예수금, label='거래후예수금', alpha=0.4, color=self.dic_색상['회색'])
-            # 초기자본(기준예수금)을 y축 원점으로 고정 - 원점 위=수익, 아래=손실 즉시 판별
-            n_기준 = float(n_기준예수금) if n_기준예수금 is not None else float(ary_거래후예수금[0])
+            ax_예수금.plot(li_일자, ary_거래후예수금, label='거래후예수금', lw=2, alpha=0.9, color=self.dic_색상['파랑'])
             n_편차 = max(abs(ary_거래후예수금.max() - n_기준), abs(ary_거래후예수금.min() - n_기준), n_기준 * 0.01)
             ax_예수금.set_ylim(n_기준 - n_편차 * 1.15, n_기준 + n_편차 * 1.15)   # 기준을 정중앙(원점)에
-            ax_예수금.axhline(n_기준, lw=1, ls='--', alpha=0.6, color=self.dic_색상['회색'])
+            ax_예수금.axhline(n_기준, lw=1, ls='--', alpha=0.6, color=self.dic_색상['파랑'])
             ax_예수금.set_yticks([n_기준 - n_편차, n_기준, n_기준 + n_편차])
             ax_예수금.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x / 1e4:,.0f}만'))
             ax_예수금.tick_params(length=0, labelsize=7)
-            ax_예수금.set_zorder(ax_메인축.get_zorder() - 1)   # 막대를 라인 뒤로 (배경)
-            ax_메인축.patch.set_visible(False)                # 메인축 배경이 막대를 가리지 않도록
-            ax_예수금.legend(loc='lower left', fontsize=8)
+            h_손익, l_손익 = ax_손익.get_legend_handles_labels()
+            h_예수금, l_예수금 = ax_예수금.get_legend_handles_labels()
+            ax_예수금.legend(h_손익 + h_예수금, l_손익 + l_예수금, loc='lower left', fontsize=8)
             ax_메인축.text(0.68, 0.84, f'예수금 {ary_거래후예수금[-1]:,.0f}', fontsize=9, fontweight='bold',
-                        color=self.dic_색상['회색'], va='top', ha='left', transform=ax_메인축.transAxes)
+                        color=self.dic_색상['파랑'], va='top', ha='left', transform=ax_메인축.transAxes)
 
         return ax
 
