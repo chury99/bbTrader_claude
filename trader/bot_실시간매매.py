@@ -21,7 +21,7 @@ _T_이격최소 = float(os.environ.get('TB_DIST', '5.0'))         # 당일고가
 _T_체결속도 = float(os.environ.get('TB_SPEED', '3.5'))        # 직전 5분 대비 60초 유효틱 건수 배수 (체결속도 서지) - 큰상승은 중간크기 매수가 빠르게 연속
 _T_덩어리상한 = float(os.environ.get('TB_CHUNKMAX', '30'))     # 60초 내 최대 매수틱 ÷ 평균틱크기 상한 - 단일 대형블록 주도(미끼성)는 흐지부지 -> 배제
 _T_일최대거래 = int(os.environ.get('TB_MAXPERDAY', '2'))       # 종목당 1일 최대 진입 횟수
-_T_쿨다운 = int(os.environ.get('TB_COOLDOWN', '600'))         # 청산 후 재진입 대기 (초)
+_T_쿨다운 = int(os.environ.get('TB_COOLDOWN', '300'))         # 청산 후 재진입 대기 (초) - 트레일링 청산 전환 후 단축 (수익청산 직후 재점화 포착)
 # 청산 (신호소멸 청산 제거 - 매수세 신호는 ~10분에 소멸하나 가격 추세는 더 감 → 청산은 가격 트레일링이 담당)
 _T_손절 = float(os.environ.get('TB_STOP', '2.0'))            # 손절 % (매수가 대비)
 _T_트레일 = float(os.environ.get('TB_TRAIL', '3.0'))          # 트레일링 스탑 % (보유중 고점 대비) - 수익을 추세 끝까지 연장
