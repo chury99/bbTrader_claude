@@ -59,8 +59,7 @@ class ChartMaker:
         # 그래프 설정
         ax_메인축 = ax
         ax_보조축 = ax.twinx()
-        # 기대치
-        ax_메인축.bar(li_일자, ary_일간기대치, label='일간기대치', lw=2, alpha=0.5, color=self.dic_색상['회색'])
+        # 기대치 (일간기대치 막대는 거래후예수금 막대로 대체 - 아래 예수금 블록에서 표시)
         ax_메인축.plot(li_일자, ary_주간기대치, label='주간기대치', lw=2, alpha=0.5, color=self.dic_색상['분홍'])
         ax_메인축.plot(li_일자, ary_누적기대치, label='누적기대치', lw=2, alpha=1, color=self.dic_색상['주황'])
         ax_메인축.axhline(0.2, lw=2, alpha=0.5, linestyle='--', color=self.dic_색상['주황'])
@@ -120,22 +119,25 @@ class ChartMaker:
                     va='top', ha='left', transform=ax_메인축.transAxes)
 
         # 거래후예수금 (예수금 기반 리스크 사이징 - 해당 컬럼이 있는 전략에서만 표시)
+        # 일별 회색 막대로 표시 (기존 일간기대치 막대 대체) - 기준예수금 라인 위=수익, 아래=손실
         if '거래후예수금' in df_매매일보.columns:
             ary_거래후예수금 = df_매매일보['거래후예수금'].values
             ax_예수금 = ax.twinx()
             ax_예수금.spines['right'].set_position(('outward', 42))
-            ax_예수금.plot(li_일자, ary_거래후예수금, label='거래후예수금', lw=2, alpha=0.9, color=self.dic_색상['파랑'])
+            ax_예수금.bar(li_일자, ary_거래후예수금, label='거래후예수금', alpha=0.4, color=self.dic_색상['회색'])
             # 초기자본(기준예수금)을 y축 원점으로 고정 - 원점 위=수익, 아래=손실 즉시 판별
             n_기준 = float(n_기준예수금) if n_기준예수금 is not None else float(ary_거래후예수금[0])
             n_편차 = max(abs(ary_거래후예수금.max() - n_기준), abs(ary_거래후예수금.min() - n_기준), n_기준 * 0.01)
             ax_예수금.set_ylim(n_기준 - n_편차 * 1.15, n_기준 + n_편차 * 1.15)   # 기준을 정중앙(원점)에
-            ax_예수금.axhline(n_기준, lw=1, ls='--', alpha=0.6, color=self.dic_색상['파랑'])
+            ax_예수금.axhline(n_기준, lw=1, ls='--', alpha=0.6, color=self.dic_색상['회색'])
             ax_예수금.set_yticks([n_기준 - n_편차, n_기준, n_기준 + n_편차])
             ax_예수금.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x / 1e4:,.0f}만'))
             ax_예수금.tick_params(length=0, labelsize=7)
+            ax_예수금.set_zorder(ax_메인축.get_zorder() - 1)   # 막대를 라인 뒤로 (배경)
+            ax_메인축.patch.set_visible(False)                # 메인축 배경이 막대를 가리지 않도록
             ax_예수금.legend(loc='lower left', fontsize=8)
             ax_메인축.text(0.68, 0.84, f'예수금 {ary_거래후예수금[-1]:,.0f}', fontsize=9, fontweight='bold',
-                        color=self.dic_색상['파랑'], va='top', ha='left', transform=ax_메인축.transAxes)
+                        color=self.dic_색상['회색'], va='top', ha='left', transform=ax_메인축.transAxes)
 
         return ax
 
@@ -152,12 +154,12 @@ class ChartMaker:
         # n_손절라인 = -1
         n_목표라인 = round(((df_누적거래['목표기준가'] - df_누적거래['매수가']) / df_누적거래['매수atr']).max(), 1)
         n_손절라인 = round(((df_누적거래['손절기준가'] - df_누적거래['매수가']) / df_누적거래['매수atr']).max(), 1)
-        ax.scatter(ary_mae[ary_수익여부], ary_mfe[ary_수익여부], s=55, c=self.dic_색상['분홍'],
+        ax.scatter(ary_mae[ary_수익여부], ary_mfe[ary_수익여부], s=55, c=self.dic_색상['빨강'],
                    alpha=.85, label=f'승 ({ary_수익여부.sum()})', edgecolors='white', linewidths=.6)
-        ax.scatter(ary_mae[~ary_수익여부], ary_mfe[~ary_수익여부], s=45, c=self.dic_색상['하늘'],
+        ax.scatter(ary_mae[~ary_수익여부], ary_mfe[~ary_수익여부], s=45, c=self.dic_색상['파랑'],
                    alpha=0.7, label=f'패 ({(~ary_수익여부).sum()})', edgecolors='none')
-        ax.axhline(n_목표라인, color=self.dic_색상['분홍'], ls='--', lw=1, alpha=.6, label=f'목표 +{n_목표라인}R')
-        ax.axvline(n_손절라인, color=self.dic_색상['하늘'], ls='--', lw=1, alpha=.6, label=f'손절 {n_손절라인}R')
+        ax.axhline(n_목표라인, color=self.dic_색상['빨강'], ls='--', lw=1, alpha=.6, label=f'목표 +{n_목표라인}R')
+        ax.axvline(n_손절라인, color=self.dic_색상['파랑'], ls='--', lw=1, alpha=.6, label=f'손절 {n_손절라인}R')
 
         # 스케일 설정
         ax.autoscale(enable=True, axis='both', tight=False)
@@ -190,10 +192,10 @@ class ChartMaker:
         # n_손절라인 = -1
         n_목표라인 = round(((df_누적거래['목표기준가'] - df_누적거래['매수가']) / df_누적거래['매수atr']).max(), 1)
         n_손절라인 = round(((df_누적거래['손절기준가'] - df_누적거래['매수가']) / df_누적거래['매수atr']).max(), 1)
-        ax.bar(ary_x, ary_mfe, color=self.dic_색상['분홍'], alpha=0.8, label='MFE')
-        ax.bar(ary_x, ary_mae, color=self.dic_색상['하늘'], alpha=0.8, label='MAE')
-        ax.axhline(n_목표라인, color=self.dic_색상['분홍'], ls='--', lw=0.8, alpha=0.5, label=f'목표 +{n_목표라인}R')
-        ax.axhline(n_손절라인, color=self.dic_색상['하늘'], ls='--', lw=0.8, alpha=0.5, label=f'손절 {n_손절라인}R')
+        ax.bar(ary_x, ary_mfe, color=self.dic_색상['빨강'], alpha=0.8, label='MFE')
+        ax.bar(ary_x, ary_mae, color=self.dic_색상['파랑'], alpha=0.8, label='MAE')
+        ax.axhline(n_목표라인, color=self.dic_색상['빨강'], ls='--', lw=0.8, alpha=0.5, label=f'목표 +{n_목표라인}R')
+        ax.axhline(n_손절라인, color=self.dic_색상['파랑'], ls='--', lw=0.8, alpha=0.5, label=f'손절 {n_손절라인}R')
 
         # 스케일 설정
         ax.autoscale(enable=True, axis='both', tight=False)
