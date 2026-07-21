@@ -20,10 +20,10 @@ _T_체결속도 = float(os.environ.get('TB_SPEED', '3.5'))        # 직전 5분 
 _T_덩어리상한 = float(os.environ.get('TB_CHUNKMAX', '30'))     # 60초 내 최대 매수틱 ÷ 평균틱크기 상한 - 단일 대형블록 주도(미끼성)는 흐지부지 -> 배제
 _T_일최대거래 = int(os.environ.get('TB_MAXPERDAY', '2'))       # 종목당 1일 최대 진입 횟수
 _T_쿨다운 = int(os.environ.get('TB_COOLDOWN', '600'))         # 청산 후 재진입 대기 (초)
-# 청산
+# 청산 (신호소멸 청산 제거 - 매수세 신호는 ~10분에 소멸하나 가격 추세는 더 감 → 청산은 가격 트레일링이 담당)
 _T_손절 = float(os.environ.get('TB_STOP', '2.0'))            # 손절 % (매수가 대비)
-_T_최소보유 = int(os.environ.get('TB_MINHOLD', '600'))        # 최소 보유시간 (초) - 이 동안은 손절만 작동 (신호 유효시간 ~10분에 맞춤)
-_T_최대보유 = int(os.environ.get('TB_MAXHOLD', '1200'))       # 최대 보유시간 (초) - 청산신호 없이 초과 시 강제 타임아웃 (정상거래 최대 14분 → 20분 여유)
+_T_트레일 = float(os.environ.get('TB_TRAIL', '3.0'))          # 트레일링 스탑 % (보유중 고점 대비) - 수익을 추세 끝까지 연장
+_T_최대보유 = int(os.environ.get('TB_MAXHOLD', '3600'))       # 최대 보유시간 (초) - 스탑 미터치 횡보 시 강제 타임아웃 (트레일이 대부분 먼저 청산)
 # 공통
 _T_비용 = float(os.environ.get('TB_COST', '0.35'))           # 왕복 거래비용 % (수수료+세금+슬리피지)
 _T_차트최대 = int(os.environ.get('TB_CHARTMAX', '30'))        # 매매일보 개별 거래차트 최대 수
@@ -41,7 +41,7 @@ class AnalyzerBot:
     """ 틱 데이터 기반 매수세 전략 백테스팅 (벡터연산, 독립 동작)
         파이프라인: pick_종목선정 → make_매매정보 → make_거래내역 → make_결과정리 → make_매매일보
         - 진입: 매수세 형성 (60초 순매수비율/거래강도/체결속도) + 눌림(고가 대비 이격) + 덩어리배수 상한 필터
-        - 청산: 매수세 소멸 (최소보유 이후) / 손절 / 장마감 """
+        - 청산: 트레일링 스탑 (보유중 고점 대비 %) / 손절 / 장마감 """
 
     # noinspection PyUnresolvedReferences
     def __init__(self, n_검증일수=60, b_디버그모드=False):
@@ -524,7 +524,6 @@ class AnalyzerBot:
                   & (df_1초['체결속도'] >= _T_체결속도) & (df_1초['덩어리배수'] <= _T_덩어리상한)
                   & (df_1초.index > n_웜업) & (df_1초.index < self.n_장마감초)
                   & (df_1초['이격률'] >= _T_이격최소)).fillna(False).values
-        ary_소멸 = (df_1초['순매수비율'] < 0).fillna(False).values
         ary_가격 = df_1초['price'].values
         ary_변동폭 = df_1초['변동폭300'].values
 
@@ -542,27 +541,26 @@ class AnalyzerBot:
             n_매수가 = ary_가격[i_진입]
             n_손절가 = n_매수가 * (1 - _T_손절 / 100)
 
-            # 청산 시점 탐색 (벡터): 소멸(최소보유 이후) / 손절 / 장마감 중 최선
+            # 청산 시점 탐색 (벡터): 스탑 터치(고정손절/고점대비 트레일링 중 최고) / 보유초과 / 장마감 중 최선
             i_시작 = i_진입 + 1
             ary_구간가격 = ary_가격[i_시작:]
-            # 소멸: 최소보유 시간 이후부터만 유효
-            ary_구간소멸 = ary_소멸[i_시작:].copy()
-            ary_구간소멸[:_T_최소보유] = False
-            i_소멸 = int(np.argmax(ary_구간소멸)) if ary_구간소멸.any() else n_길이
-            i_손절 = int(np.argmax(ary_구간가격 <= n_손절가)) if (ary_구간가격 <= n_손절가).any() else n_길이
+            # 스탑 레벨 = max(고정손절가, 보유중 누적고점 × (1-트레일%)) - 고점은 매수가 포함 당해초까지
+            ary_피크 = np.maximum.accumulate(np.concatenate(([n_매수가], ary_구간가격)))[1:]
+            ary_스탑 = np.maximum(n_손절가, ary_피크 * (1 - _T_트레일 / 100))
+            ary_터치 = ary_구간가격 <= ary_스탑
+            i_스탑 = int(np.argmax(ary_터치)) if ary_터치.any() else n_길이
             i_마감 = int(np.searchsorted(ary_초[i_시작:], self.n_장마감초))
             i_마감 = i_마감 if i_마감 < len(ary_구간가격) else n_길이
             i_보유초과 = _T_최대보유 - 1     # 진입 후 _T_최대보유초 경과(i_진입+최대보유) 시점 (실시간매매 경과>=최대보유와 등가)
-            i_청산상대 = min(i_소멸, i_손절, i_마감, i_보유초과)
+            i_청산상대 = min(i_스탑, i_마감, i_보유초과)
             if i_청산상대 >= n_길이 or i_시작 + i_청산상대 >= n_길이:
                 i_청산 = n_길이 - 1
                 s_사유 = '타임아웃'
             else:
                 i_청산 = i_시작 + i_청산상대
-                s_사유 = ('손절터치' if i_청산상대 == i_손절 else
-                        '소멸청산' if i_청산상대 == i_소멸 else
+                s_사유 = (('손절터치' if ary_스탑[i_스탑] == n_손절가 else '트레일청산') if i_청산상대 == i_스탑 else
                         '보유초과' if i_청산상대 == i_보유초과 else '타임아웃')
-            n_매도가 = n_손절가 if s_사유 == '손절터치' else ary_가격[i_청산]
+            n_매도가 = ary_스탑[i_청산상대] if s_사유 in ['손절터치', '트레일청산'] else ary_가격[i_청산]
 
             # MFE/MAE (벡터 슬라이스)
             ary_보유 = ary_가격[i_진입:i_청산 + 1]
@@ -576,7 +574,7 @@ class AnalyzerBot:
                 일자=s_일자, 종목코드=s_종목코드, 종목명=s_종목명, 전일일봉고가=n_전일고가,
                 손절기준가=n_손절가, 목표기준가=n_매수가 + n_매수atr, 트레일링기준가=np.nan,
                 매수신호=True, 매도신호=True,
-                손절터치=(s_사유 == '손절터치'), 소멸청산=(s_사유 == '소멸청산'),
+                손절터치=(s_사유 == '손절터치'), 트레일청산=(s_사유 == '트레일청산'),
                 보유초과=(s_사유 == '보유초과'), 타임아웃=(s_사유 == '타임아웃'),
                 보유신호=True,
                 매수시점=self._초2시간(ary_초[i_진입]), 매도시점=self._초2시간(ary_초[i_청산]),
@@ -670,8 +668,8 @@ class AnalyzerBot:
             df_매매일보 = (pd.DataFrame(li_dic매매일보).set_index('일자', drop=False).sort_index()
                        if len(li_dic매매일보) > 0 else pd.DataFrame())
             df_당일거래 = df_누적거래.loc[df_누적거래['일자'] == s_일자].copy().sort_values(['매수시점', '종목코드']).reset_index(drop=True)
-            df_당일거래['매도사유'] = df_당일거래[['손절터치', '소멸청산', '보유초과', '타임아웃']].idxmax(axis=1).where(
-                                    df_당일거래[['손절터치', '소멸청산', '보유초과', '타임아웃']].any(axis=1))
+            df_당일거래['매도사유'] = df_당일거래[['손절터치', '트레일청산', '보유초과', '타임아웃']].idxmax(axis=1).where(
+                                    df_당일거래[['손절터치', '트레일청산', '보유초과', '타임아웃']].any(axis=1))
 
             # 개별 차트 대상 제한 - 거래 과다 시 |수익률| 상위만 (파일 과대 방지)
             if len(df_당일거래) > _T_차트최대:
