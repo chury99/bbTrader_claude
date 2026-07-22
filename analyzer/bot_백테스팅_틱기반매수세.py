@@ -17,13 +17,15 @@ _T_거래강도 = float(os.environ.get('TB_INT', '5.0'))          # 직전 5분 
 _T_최소거래량 = int(os.environ.get('TB_MINVOL60', '10000'))    # 60초 절대 거래량 바닥 (주) - 얇은종목 '살짝 흔들림' 배제, 진짜 상승만 진입
 _T_단주 = int(os.environ.get('TB_MINQTY', '2'))              # 단주 필터: |틱거래량| <= 값이면 매수세 계산서 제외 (흐름조작 배제)
 _T_이격최소 = float(os.environ.get('TB_DIST', '5.0'))         # 당일고가 대비 최소 이격 % (눌림 필터)
+_T_이격최대 = float(os.environ.get('TB_DISTMAX', '14'))       # 당일고가 대비 최대 이격 % 상한 (낙폭과대=칼날 배제) - 전수스캔상 이격 14~16부터 승률 10%로 급락
+
 _T_체결속도 = float(os.environ.get('TB_SPEED', '3.5'))        # 직전 5분 대비 60초 유효틱 건수 배수 (체결속도 서지) - 큰상승은 중간크기 매수가 빠르게 연속
 _T_덩어리상한 = float(os.environ.get('TB_CHUNKMAX', '30'))     # 60초 내 최대 매수틱 ÷ 평균틱크기 상한 - 단일 대형블록 주도(미끼성)는 흐지부지 -> 배제
 _T_일최대거래 = int(os.environ.get('TB_MAXPERDAY', '2'))       # 종목당 1일 최대 진입 횟수
 _T_쿨다운 = int(os.environ.get('TB_COOLDOWN', '300'))         # 청산 후 재진입 대기 (초) - 트레일링 청산 전환 후 단축 (수익청산 직후 재점화 포착)
 # 청산 (신호소멸 청산 제거 - 매수세 신호는 ~10분에 소멸하나 가격 추세는 더 감 → 청산은 가격 트레일링이 담당)
-_T_손절 = float(os.environ.get('TB_STOP', '2.0'))            # 손절 % (매수가 대비)
-_T_트레일 = float(os.environ.get('TB_TRAIL', '3.0'))          # 트레일링 스탑 % (보유중 고점 대비) - 수익을 추세 끝까지 연장
+_T_손절 = float(os.environ.get('TB_STOP', '1.5'))            # 손절 % (매수가 대비) - 2.0→1.5: 약세일 손실 축소 (전수스캔 기반 재설계)
+_T_트레일 = float(os.environ.get('TB_TRAIL', '2.5'))          # 트레일링 스탑 % (보유중 고점 대비) - 3.0→2.5: 약세일 승자 피크가 +3% 언저리라 3%는 이익 전부 반납, 2.5 이하라야 비용 제하고 양수 마감
 _T_최대보유 = int(os.environ.get('TB_MAXHOLD', '3600'))       # 최대 보유시간 (초) - 스탑 미터치 횡보 시 강제 타임아웃 (트레일이 대부분 먼저 청산)
 # 공통
 _T_비용 = float(os.environ.get('TB_COST', '0.35'))           # 왕복 거래비용 % (수수료+세금+슬리피지)
@@ -524,7 +526,7 @@ class AnalyzerBot:
                   & (df_1초['전체60'] >= _T_최소거래량)
                   & (df_1초['체결속도'] >= _T_체결속도) & (df_1초['덩어리배수'] <= _T_덩어리상한)
                   & (df_1초.index > n_웜업) & (df_1초.index < self.n_장마감초)
-                  & (df_1초['이격률'] >= _T_이격최소)).fillna(False).values
+                  & (df_1초['이격률'] >= _T_이격최소) & (df_1초['이격률'] < _T_이격최대)).fillna(False).values
         ary_가격 = df_1초['price'].values
         ary_변동폭 = df_1초['변동폭300'].values
 
