@@ -100,18 +100,26 @@ class TraderBot:
     # -----------------------------------------------------------------
     async def set_매매대상선정(self):
         """ 감시종목 중 전일 일봉 기준 매매 대상 선정 (백테스팅 pick_종목선정과 동일 필터) """
-        # 감시종목 불러오기 (수신 모듈이 파일 생성 전이면 대기 - 기동 순서 레이스 방지)
-        li_파일 = list()
+        # 감시종목 불러오기 - '당일 파일'을 기다린다 (수신 모듈 make_감시종목이 1~2초 뒤 생성)
+        # 과거 파일 존재만으로 통과시키면 전일 목록으로 하루를 감시하게 됨 (2026-07-23 실장애: 전일 대비 6종목 상이,
+        # 그중 유일한 신호 종목이 당일 신규분이라 미진입. 양일 모두 41개라 건수 로그로는 식별 불가했음)
+        s_파일 = None
         for _ in range(60):
-            li_파일 = [파일 for 파일 in os.listdir(self.folder_감시종목)
-                     if '.pkl' in 파일 and re.findall(r'\d{8}', 파일)[0] <= self.s_오늘]
-            if len(li_파일) > 0:
+            li_당일 = [파일 for 파일 in os.listdir(self.folder_감시종목)
+                     if '.pkl' in 파일 and re.findall(r'\d{8}', 파일)[0] == self.s_오늘]
+            if len(li_당일) > 0:
+                s_파일 = max(li_당일)
                 break
             await asyncio.sleep(1)
-        if len(li_파일) == 0:
-            self.make_로그('감시종목 파일 미존재 - 매매대상 선정 중단')
-            return
-        dic_감시종목 = pd.read_pickle(os.path.join(self.folder_감시종목, max(li_파일)))
+        if s_파일 is None:      # 당일 파일 미생성 - 최신 과거 파일로 폴백 (감시 중단보다는 낫되 반드시 경고)
+            li_과거 = [파일 for 파일 in os.listdir(self.folder_감시종목)
+                     if '.pkl' in 파일 and re.findall(r'\d{8}', 파일)[0] < self.s_오늘]
+            if len(li_과거) == 0:
+                self.make_로그('!!! 감시종목 파일 미존재 - 매매대상 선정 중단 (매매 불가)')
+                return
+            s_파일 = max(li_과거)
+            self.make_로그(f'!!! 당일 감시종목 파일 미생성 (60초 대기 초과) - 과거 파일로 폴백: {s_파일}')
+        dic_감시종목 = pd.read_pickle(os.path.join(self.folder_감시종목, s_파일))
         li_감시종목 = dic_감시종목.get('매매대상', list()) + dic_감시종목.get('수집대상', list())
 
         # 전일 일봉 필터 (거래대금/가격)
@@ -128,9 +136,9 @@ class TraderBot:
                 self.set_매매대상.add(s_종목코드)
                 self.dic_종목명[s_종목코드] = sri_전일['종목명']
 
-        # 로그 기록 - 선정 종목코드 명시 (감시종목 전체 목록은 수신 모듈 등록 로그 참조)
+        # 로그 기록 - 사용한 감시종목 파일 + 선정 종목코드 명시 (건수만으로는 전일 목록 오사용을 식별 못함)
         li_매매대상 = [코드 for 코드 in li_감시종목 if 코드 in self.set_매매대상]   # 감시종목 순서 유지
-        self.make_로그(f'감시 {len(li_감시종목)}개 중 매매대상 {len(li_매매대상)}개 선정\n'
+        self.make_로그(f'{s_파일} 기준 - 감시 {len(li_감시종목)}개 중 매매대상 {len(li_매매대상)}개 선정\n'
                      f' - {li_매매대상}')
 
     # -----------------------------------------------------------------
