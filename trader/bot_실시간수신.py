@@ -9,10 +9,6 @@ import asyncio
 
 import ut, xapi
 
-# 실시간매매 대상 선정 필터 (bot_실시간매매·백테스팅과 동일 - 감시종목 100개 중 실매매 유니버스 산정용)
-_T_최소거래대금 = float(os.environ.get('TB_MINVALUE', '5000'))  # 전일 거래대금 하한 (백만원, 5000=50억)
-_T_최소가격 = float(os.environ.get('TB_MINPRICE', '1000'))     # 전일 종가 하한 (원)
-
 
 # noinspection NonAsciiCharacters,SpellCheckingInspection,PyPep8Naming,PyTypeChecker,PyAttributeOutsideInit
 class TraderBot:
@@ -90,15 +86,9 @@ class TraderBot:
         # 파일 저장
         pd.to_pickle(dic_감시종목, os.path.join(self.folder_감시종목, f'dic_감시종목_{self.s_오늘}.pkl'))
 
-        # 로그 기록 - 감시 100개 전체(매매/수집 구분 없이) + 실시간매매 대상 포함 여부 표기
-        li_감시종목 = df_종목선정100['종목코드'].to_list()
-        li_매매대상 = df_종목선정100.loc[(df_종목선정100['거래대금(백만)'] >= _T_최소거래대금)
-                                    & (df_종목선정100['종가'] >= _T_최소가격), '종목코드'].to_list()
-        li_누락 = [코드 for 코드 in li_매매대상 if 코드 not in li_감시종목]   # 매매대상 중 감시종목 누락 (정상=0)
-        self.make_로그(f'총 {len(li_감시종목)}개 - 실시간매매 대상 {len(li_매매대상)}개 '
-                     f'{"전부 포함" if not li_누락 else f"누락 {len(li_누락)}개 {li_누락}"}\n'
-                     f' - 감시종목 {len(li_감시종목)}: {li_감시종목}\n'
-                     f' - 매매대상 {len(li_매매대상)}: {li_매매대상}')
+        # 로그 기록 - 건수만 (종목코드 목록은 실시간매매 set_매매대상선정에서 기록, 등록 로그와 중복 방지)
+        self.make_로그(f'총 {len(df_종목선정100)}개 '
+                     f'(매매대상 {len(dic_감시종목["매매대상"])}개 / 수집대상 {len(dic_감시종목["수집대상"])}개)')
 
     async def exec_감시종목등록(self):
         """ 감시종목 폴더에 저장된 종목을 웹소켓 서버에 등록 """
