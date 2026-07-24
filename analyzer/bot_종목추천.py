@@ -7,7 +7,7 @@ import re
 import pandas as pd
 import dataframe_image as dfi
 from tqdm import tqdm
-from google import genai
+# from google import genai
 
 import ut
 
