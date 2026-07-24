@@ -696,9 +696,12 @@ class AnalyzerBot:
             ax_누적기대치 = fig.add_subplot(gs[0, 0])
             ax_mfe산점도 = fig.add_subplot(gs[0, 1])
             ax_거래별mfe = fig.add_subplot(gs[0, 2])
+            # MFE/MAE 기준선(%) = 실제 매매 기준. 손절 = -_T_손절%, 목표 = 트레일 손익분기 피크(트레일 되받음+비용 상쇄 지점)
+            n_손절선 = -_T_손절
+            n_트레일BE = ((1 + _T_비용 / 100) / (1 - _T_트레일 / 100) - 1) * 100
             self.chart.ax_누적기대치(ax=ax_누적기대치, df_매매일보=df_매매일보, n_기준예수금=_T_초기예수금)
-            self.chart.ax_mfe산점도(ax=ax_mfe산점도, df_누적거래=df_누적거래)
-            self.chart.ax_거래별mfe(ax=ax_거래별mfe, df_누적거래=df_누적거래)
+            self.chart.ax_mfe산점도(ax=ax_mfe산점도, df_누적거래=df_누적거래, n_손절선=n_손절선, n_목표선=n_트레일BE)
+            self.chart.ax_거래별mfe(ax=ax_거래별mfe, df_누적거래=df_누적거래, n_손절선=n_손절선, n_목표선=n_트레일BE)
 
             for idx in df_차트거래.index:
                 dic_거래정보 = df_차트거래.loc[idx].to_dict()

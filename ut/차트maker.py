@@ -152,25 +152,24 @@ class ChartMaker:
 
         return ax
 
-    def ax_mfe산점도(self, ax, df_누적거래):
-        """ 입력된 데이터 기준으로 MFE / MAE 그래프 생성 후 리턴 """
-        # 데이터 정의
-        ary_mfe = df_누적거래['mfe_매수atr'].values
-        ary_mae = df_누적거래['mae_매수atr'].values
+    def ax_mfe산점도(self, ax, df_누적거래, n_손절선=None, n_목표선=None):
+        """ 입력된 데이터 기준으로 MFE / MAE 그래프 생성 후 리턴
+            n_손절선/n_목표선: 실제 매매 기준(%) 직접 지정 (미지정 시 손절/목표기준가를 매수가 대비 %로 환산) """
+        # 데이터 정의 (매매 기준이 % 이므로 MFE/MAE 도 % 단위로 표기 - 손절/트레일 기준선과 직접 대조)
+        ary_mfe = df_누적거래['mfe_수익률'].values
+        ary_mae = df_누적거래['mae_수익률'].values
         ary_수익률 = df_누적거래['수익률'].values
         ary_수익여부 = ary_수익률 > 0
 
-        # 그래프 설정
-        # n_익절라인 = +6
-        # n_손절라인 = -1
-        n_목표라인 = round(((df_누적거래['목표기준가'] - df_누적거래['매수가']) / df_누적거래['매수atr']).max(), 1)
-        n_손절라인 = round(((df_누적거래['손절기준가'] - df_누적거래['매수가']) / df_누적거래['매수atr']).max(), 1)
+        # 그래프 설정 (기준선 = 지정값 우선, 없으면 손절/목표기준가를 매수가 대비 % 로 환산)
+        n_목표라인 = round(n_목표선 if n_목표선 is not None else ((df_누적거래['목표기준가'] / df_누적거래['매수가'] - 1) * 100).max(), 1)
+        n_손절라인 = round(n_손절선 if n_손절선 is not None else ((df_누적거래['손절기준가'] / df_누적거래['매수가'] - 1) * 100).max(), 1)
         ax.scatter(ary_mae[ary_수익여부], ary_mfe[ary_수익여부], s=55, c=self.dic_색상['빨강'],
                    alpha=.85, label=f'승 ({ary_수익여부.sum()})', edgecolors='white', linewidths=.6)
         ax.scatter(ary_mae[~ary_수익여부], ary_mfe[~ary_수익여부], s=45, c=self.dic_색상['파랑'],
                    alpha=0.7, label=f'패 ({(~ary_수익여부).sum()})', edgecolors='none')
-        ax.axhline(n_목표라인, color=self.dic_색상['빨강'], ls='--', lw=1, alpha=.6, label=f'목표 +{n_목표라인}R')
-        ax.axvline(n_손절라인, color=self.dic_색상['파랑'], ls='--', lw=1, alpha=.6, label=f'손절 {n_손절라인}R')
+        ax.axhline(n_목표라인, color=self.dic_색상['빨강'], ls='--', lw=1, alpha=.6, label=f'목표 +{n_목표라인}%')
+        ax.axvline(n_손절라인, color=self.dic_색상['파랑'], ls='--', lw=1, alpha=.6, label=f'손절 {n_손절라인}%')
 
         # 스케일 설정
         ax.autoscale(enable=True, axis='both', tight=False)
@@ -180,8 +179,8 @@ class ChartMaker:
 
         # 뷰 설정
         ax.set_title('[ MFE vs MAE 산점도 ]', loc='left', fontsize=10, fontweight='bold')
-        ax.set_ylabel('MFE (최대 유리 움직임, R)', fontsize=8)
-        ax.set_xlabel('MAE (먼저 빠진 깊이, R)', fontsize=8)
+        ax.set_ylabel('MFE (최대 유리 움직임, %)', fontsize=8)
+        ax.set_xlabel('MAE (먼저 빠진 깊이, %)', fontsize=8)
         ax.grid(True, axis='y', color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
         ax.legend(loc='upper left', fontsize=8)
         ax.tick_params(length=0, labelsize=8)
@@ -190,23 +189,22 @@ class ChartMaker:
 
         return ax
 
-    def ax_거래별mfe(self, ax, df_누적거래):
-        """ 입력된 데이터 기준으로 MFE / MAE 그래프 생성 후 리턴 """
+    def ax_거래별mfe(self, ax, df_누적거래, n_손절선=None, n_목표선=None):
+        """ 입력된 데이터 기준으로 MFE / MAE 그래프 생성 후 리턴
+            n_손절선/n_목표선: 실제 매매 기준(%) 직접 지정 (미지정 시 손절/목표기준가를 매수가 대비 %로 환산) """
         # 데이터 정의
         df_누적거래 = df_누적거래.sort_values(['일자', '매수시점']).reset_index(drop=True)
         ary_x = df_누적거래.index
-        ary_mfe = df_누적거래['mfe_매수atr'].values
-        ary_mae = df_누적거래['mae_매수atr'].values
+        ary_mfe = df_누적거래['mfe_수익률'].values
+        ary_mae = df_누적거래['mae_수익률'].values
 
-        # 그래프 설정
-        # n_익절라인 = +6
-        # n_손절라인 = -1
-        n_목표라인 = round(((df_누적거래['목표기준가'] - df_누적거래['매수가']) / df_누적거래['매수atr']).max(), 1)
-        n_손절라인 = round(((df_누적거래['손절기준가'] - df_누적거래['매수가']) / df_누적거래['매수atr']).max(), 1)
+        # 그래프 설정 (기준선 = 지정값 우선, 없으면 손절/목표기준가를 매수가 대비 % 로 환산)
+        n_목표라인 = round(n_목표선 if n_목표선 is not None else ((df_누적거래['목표기준가'] / df_누적거래['매수가'] - 1) * 100).max(), 1)
+        n_손절라인 = round(n_손절선 if n_손절선 is not None else ((df_누적거래['손절기준가'] / df_누적거래['매수가'] - 1) * 100).max(), 1)
         ax.bar(ary_x, ary_mfe, color=self.dic_색상['빨강'], alpha=0.8, label='MFE')
         ax.bar(ary_x, ary_mae, color=self.dic_색상['파랑'], alpha=0.8, label='MAE')
-        ax.axhline(n_목표라인, color=self.dic_색상['빨강'], ls='--', lw=0.8, alpha=0.5, label=f'목표 +{n_목표라인}R')
-        ax.axhline(n_손절라인, color=self.dic_색상['파랑'], ls='--', lw=0.8, alpha=0.5, label=f'손절 {n_손절라인}R')
+        ax.axhline(n_목표라인, color=self.dic_색상['빨강'], ls='--', lw=0.8, alpha=0.5, label=f'목표 +{n_목표라인}%')
+        ax.axhline(n_손절라인, color=self.dic_색상['파랑'], ls='--', lw=0.8, alpha=0.5, label=f'손절 {n_손절라인}%')
 
         # 스케일 설정
         ax.autoscale(enable=True, axis='both', tight=False)
@@ -217,7 +215,7 @@ class ChartMaker:
         # 뷰 설정
         ax.set_title('[ 거래별 MFE(위) / MAE(아래) ]', loc='left', fontsize=10, fontweight='bold')
         ax.set_xlabel('거래 순번', fontsize=8)
-        ax.set_ylabel('R', fontsize=8)
+        ax.set_ylabel('%', fontsize=8)
         ax.grid(True, axis='y', color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
         ax.legend(loc='upper left', fontsize=8)
         ax.tick_params(length=0, labelsize=8)
