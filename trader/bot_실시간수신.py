@@ -27,11 +27,10 @@ class TraderBot:
         # 폴더 정의
         dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
         self.folder_감시종목 = dic_폴더정보['매수매도|감시종목']
+        self.folder_일봉캐시 = os.path.join(dic_폴더정보['데이터|차트캐시'], '일봉1')   # collector/bot_캐시생성 결과
+        self.folder_대상종목 = dic_폴더정보['데이터|대상종목']                        # collector/bot_정보수집 결과
+        self.folder_조회순위 = dic_폴더정보['데이터|조회순위_tr']                     # collector/bot_조회순위 결과
         os.makedirs(self.folder_감시종목, exist_ok=True)
-
-        # 추가 폴더 정의
-        self.folder_서버 = ('/Volumes/extSSD4tb/80_Backup/10_python_backup/ProjectWork/spTraderV2'
-                          if sys.platform == 'darwin' else '')
 
         # api 정의
         self.wsapi = xapi.WebsocketAPI_kiwoom.WebsocketAPIkiwoom()
@@ -50,14 +49,17 @@ class TraderBot:
     def make_감시종목(self):
         """ 전일일봉 기준으로 감시종목 생성하여 저장 """
         # 일봉 불러오기
-        folder_일봉 = os.path.join(self.folder_서버, '데이터', '차트캐시', '일봉1')
+        folder_일봉 = self.folder_일봉캐시
         s_기준일자 = max(re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_일봉) if '.pkl' in 파일)
         dic_일봉 = pd.read_pickle(os.path.join(folder_일봉, f'dic_차트캐시_1일봉_{s_기준일자}.pkl'))
 
         # 추가 데이터 불러오기 - 전일 데이터 기준으로 당일 후보종목 생성
-        df_거래대상 = pd.read_pickle(os.path.join(self.folder_서버, '데이터', '대상종목', f'df_대상종목_{s_기준일자}.pkl'))
-        df_조회순위 = (pd.read_csv(os.path.join(self.folder_서버, '데이터', '조회순위_tr', f'df_조회순위_{s_기준일자}.csv')
-                               , encoding='cp949', dtype=str, on_bad_lines='skip'))
+        #   그날 파일이 없으면 그 전 가장 최근 파일로 대신하고 경고를 남긴다 (수집이 하루 빠져도 틱 수집은 멈추지 않게)
+        path_대상종목 = self._find_기준일이전(folder=self.folder_대상종목, s_머리='df_대상종목', s_확장자='.pkl', s_기준일자=s_기준일자)
+        path_조회순위 = self._find_기준일이전(folder=self.folder_조회순위, s_머리='df_조회순위', s_확장자='.csv', s_기준일자=s_기준일자)
+        df_거래대상 = pd.read_pickle(path_대상종목) if path_대상종목 is not None else pd.DataFrame(columns=['종목코드'])
+        df_조회순위 = (pd.read_csv(path_조회순위, encoding='cp949', dtype=str, on_bad_lines='skip')
+                   if path_조회순위 is not None else pd.DataFrame(columns=['종목코드']))
         li_거래대상 = df_거래대상['종목코드'].to_list()
         li_조회순위 = df_조회순위['종목코드'].unique().tolist()
 
@@ -90,6 +92,18 @@ class TraderBot:
         # 로그 기록 - 건수만 (종목코드 목록은 실시간매매 set_매매대상선정에서 기록, 등록 로그와 중복 방지)
         self.make_로그(f'총 {len(df_종목선정100)}개 '
                      f'(조회순위포함 {len(dic_감시종목["조회순위포함"])}개 / 조회순위미포함 {len(dic_감시종목["조회순위미포함"])}개)')
+
+    def _find_기준일이전(self, folder, s_머리, s_확장자, s_기준일자):
+        """ 기준일자 파일 경로 - 없으면 그 전 가장 최근 파일, 그것도 없으면 None (대신 쓴 경우 경고 로그) """
+        li_일자 = sorted(re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder)
+                       if 파일.startswith(s_머리) and 파일.endswith(s_확장자) and re.findall(r'\d{8}', 파일)[0] <= s_기준일자)\
+                    if os.path.exists(folder) else list()
+        if len(li_일자) == 0:
+            self.make_로그(f'!!! {s_머리} 파일 없음 ({s_기준일자} 이전 전무) - 빈 목록으로 진행')
+            return None
+        if li_일자[-1] != s_기준일자:
+            self.make_로그(f'!!! {s_머리}_{s_기준일자} 없음 - {li_일자[-1]} 파일로 대신')
+        return os.path.join(folder, f'{s_머리}_{li_일자[-1]}{s_확장자}')
 
     async def exec_감시종목등록(self):
         """ 감시종목 폴더에 저장된 종목을 웹소켓 서버에 등록 """

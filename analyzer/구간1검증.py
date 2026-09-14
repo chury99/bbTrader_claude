@@ -65,8 +65,7 @@ class 구간1Validator:
         self.folder_out = os.path.join(self.folder_백테, '_구간1검증')
         os.makedirs(self.folder_out, exist_ok=True)
         self.path_기록 = os.path.join(self.folder_out, 'df_구간1거래.pkl')
-        self.folder_서버 = ('/Volumes/extSSD4tb/80_Backup/10_python_backup/ProjectWork/spTraderV2'
-                          if sys.platform == 'darwin' else '')
+        self.folder_일봉캐시 = os.path.join(dic['데이터|차트캐시'], '일봉1')   # collector/bot_캐시생성 결과
 
     # -----------------------------------------------------------------
     def li_일자(self):
@@ -110,7 +109,7 @@ class 구간1Validator:
         dic_감시 = pd.read_pickle(path_감시)
         # 두 키(조회순위포함/조회순위미포함)는 감시 100종목의 분할일 뿐 - 합친 뒤 거래대금·가격으로 걸러야 매매 대상이 된다
         li = dic_감시.get('조회순위포함', []) + dic_감시.get('조회순위미포함', [])
-        folder_일봉 = os.path.join(self.folder_서버, '데이터', '차트캐시', '일봉1')
+        folder_일봉 = self.folder_일봉캐시
         if not os.path.exists(folder_일봉):
             return {}
         fs = sorted(f for f in os.listdir(folder_일봉)

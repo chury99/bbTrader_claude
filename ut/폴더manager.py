@@ -31,9 +31,14 @@ class FolderManager:
         # 데이터 폴더 정의
         folder_데이터 = os.path.join(folder_work, '데이터')
         self.dic_폴더정보.update(데이터=os.path.join(folder_데이터))
+        self.dic_폴더정보['데이터|조건검색'] = os.path.join(folder_데이터, '조건검색')       # 조건검색 결과 원본 (collector)
         self.dic_폴더정보['데이터|대상종목'] = os.path.join(folder_데이터, '대상종목')
+        self.dic_폴더정보['데이터|조회순위_tr'] = os.path.join(folder_데이터, '조회순위_tr')  # 장중 30초 조회순위 원본 csv (collector)
         self.dic_폴더정보['데이터|조회순위'] = os.path.join(folder_데이터, '조회순위')
         self.dic_폴더정보['데이터|차트정보'] = os.path.join(folder_데이터, '차트정보')
+        self.dic_폴더정보['데이터|차트수집'] = os.path.join(folder_데이터, '차트수집')     # 전체종목 일봉·분봉 db
+        self.dic_폴더정보['데이터|전체종목'] = os.path.join(folder_데이터, '전체종목')
+        self.dic_폴더정보['데이터|차트캐시'] = os.path.join(folder_데이터, '차트캐시')     # 차트수집 db 로 만든 일봉 캐시
 
         # 분석 폴더 정의
         folder_분석 = os.path.join(folder_work, '분석')

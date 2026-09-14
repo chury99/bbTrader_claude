@@ -181,25 +181,60 @@
 
 ## 2. 구성
 
+> 파일을 추가·삭제하거나 역할·저장 위치가 바뀌면 이 절과 「5. 데이터 경로」를 같이 고친다.
+
 ```
-launcher_trader.py       실매매 런처 (수신·저장·매매 3개 워커를 멀티프로세스로 구동)
-launcher_analyzer.py     분석 런처 (장 종료 후 일봉수집·백테스팅·종목추천)
-
-trader/
-  bot_실시간수신.py        웹소켓 체결틱 수신 + 감시종목 등록
-  bot_실시간저장.py        체결틱 CSV 저장 (백테스팅 원천 데이터)
-  bot_실시간매매.py        ★ 실매매 판정·주문 (구간1/구간2)
-
-analyzer/
-  bot_백테스팅_틱기반매수세.py  ★ 메인 백테스팅 (구간1/구간2, 판정 정의의 기준)
-  구간1검증.py              구간1 일일 홀드아웃 누적 검증
-  워크포워드검증.py           파라미터 표본 외 검증 (과적합 진단)
-  지표탐색.py               제로베이스 지표 예측력 랭킹
-  bot_일봉수집.py / bot_종목추천.py
-
-ut/                      공용 (폴더·로그·차트·도구 매니저)
-xapi/                    키움 REST/WebSocket API 래퍼
-xconfig/                 ★ 손으로 채워야 하는 설정파일 모음 (아래 「최초 설정」 참조)
+bbTrader_claude/
+├── launcher_collector.py     수집 런처 (08:50 기동) - 조회순위(장중) · 정보수집(즉시) · 18:10 차트수집 → 캐시생성
+├── launcher_trader.py        실매매 런처 (08:58 기동) - 수신·저장·매매 3개 워커를 멀티프로세스로 구동·감시
+├── launcher_analyzer.py      분석 런처 (15:40 기동) - 일봉수집 → 종목추천 → 백테스팅 → 대시보드 → 파일정리
+├── README.md
+├── .gitignore
+│
+├── collector/                데이터 수집 (spTraderV2 에서 가져와 독립)
+│   ├── bot_정보수집.py         전체종목 · 조건검색(웹소켓) · 대상종목 ('분석대상종목' 검색식)
+│   ├── bot_조회순위.py         장중 30초마다 실시간 조회순위 csv
+│   ├── bot_차트수집.py         전체종목 일봉·분봉 sqlite db (종목별 기간 일괄조회, 08:30 수집마감)
+│   └── bot_캐시생성.py         일봉 db → 일자별 일봉 캐시 (감시종목·매매대상·백테스팅이 읽음)
+│
+├── trader/                   실매매
+│   ├── bot_실시간수신.py      전일 일봉 캐시·대상종목·조회순위로 감시종목 100개 선정 → 웹소켓 등록·체결틱 수신
+│   ├── bot_실시간저장.py      체결틱·주문체결 CSV 저장 (백테스팅 원천 데이터)
+│   └── bot_실시간매매.py      ★ 실매매 판정·주문 (구간1/구간2, 총자본 상한, 잔고 대조, 지연 신호 진입 차단)
+│
+├── analyzer/                 백테스팅·검증·리포트·수집
+│   ├── bot_일봉수집.py         조회순위 원본 정리 + 조회순위 종목 일봉
+│   ├── bot_종목추천.py         종목 선정·추천 알림 (카카오)
+│   ├── bot_백테스팅_틱기반매수세.py  ★ 메인 백테스팅 (구간1/구간2, 판정 정의의 기준)
+│   ├── 대시보드.py             진척 대시보드 HTML + 텔레그램 링크
+│   ├── 구간1검증.py            구간1 일일 홀드아웃 누적 검증 (독립 실행)
+│   ├── 워크포워드검증.py        파라미터 표본 외 검증 (과적합 진단)
+│   ├── 롤링워크포워드.py        격자 648칸 롤링 워크포워드 (1·2번 로직)
+│   ├── 종목별롤링워크포워드.py   종목별 롤링 워크포워드 (3번 로직, 실매매 미연결)
+│   └── 지표탐색.py             제로베이스 지표 예측력 랭킹 (독립 실행)
+│
+├── ut/                       공용
+│   ├── 도구manager.py          설정 로딩 · pkl/csv 저장 · sqlite 읽기 · sftp 업로드
+│   ├── 폴더manager.py          작업폴더 하위 경로 정의 (아래 「5. 데이터 경로」의 기준)
+│   ├── 파일manager.py          서버 동기화 · 보관기간 정리(원천 폴더 예외) · 잔여공간 확인
+│   ├── 로그maker.py            로그·에러 로그
+│   └── 차트maker.py            기대수익·최대이익/최대손실 그래프
+│
+├── xapi/                     외부 연동
+│   ├── RestAPI_kiwoom.py       키움 REST (조회·주문·토큰)
+│   ├── WebsocketAPI_kiwoom.py  키움 웹소켓 (실시간)
+│   ├── wsFID_kiwoom.py         실시간 항목 코드표
+│   ├── API_telegram.py         텔레그램 알림
+│   ├── API_kakao.py            카카오톡 알림 (api-kakao 에서 가져옴, 서버 토큰 동기화 없음)
+│   ├── kiwoomToken.json · .lock   자동생성 - 키움 접근토큰 (추적 제외)
+│   └── kakaoToken.json            자동갱신 - 카카오 토큰 (추적 제외)
+│
+└── xconfig/                  ★ 손으로 채우는 설정 (실제 파일은 추적 제외, .example 만 추적)
+    ├── config.json             경로·운영 설정
+    ├── kiwoomKey.json          키움 앱키·시크릿키
+    ├── kakaoKey.json           카카오 접속키
+    ├── server_info.json        sftp 접속정보·서버 폴더
+    └── telegram.json           텔레그램 봇 토큰·chat_id
 ```
 
 ## 3. 실행
@@ -217,6 +252,7 @@ cd xconfig && for f in *.example; do cp -n "$f" "${f%.example}"; done
 |---|---|
 | `xconfig/config.json` | 경로·운영 설정. `folder_work` 등 mac/win 경로를 자기 환경에 맞게 고친다 |
 | `xconfig/kiwoomKey.json` | 키움 오픈API 앱키·시크릿키. **최상위 키는 계좌번호**이며 `config.json` 의 `계좌번호` 와 일치해야 한다 |
+| `xconfig/kakaoKey.json` | 카카오 앱 REST API 키·어드민 키. 토큰은 `xapi/kakaoToken.json` 에 두고 발송 때마다 갱신한다 |
 | `xconfig/server_info.json` | 백업·차트 업로드용 sftp 접속정보와 서버 폴더 경로 |
 | `xconfig/telegram.json` | 텔레그램 알림봇 토큰·수신 `chat_id`. 쓰지 않으면 파일을 두지 않아도 된다 |
 
@@ -225,6 +261,8 @@ cd xconfig && for f in *.example; do cp -n "$f" "${f%.example}"; done
 
 > `xapi/kiwoomToken.json` · `.lock` 은 앱키로 발급받아 캐싱하는 **자동생성물**이라 `xconfig/` 가 아니라
 > `xapi/` 에 그대로 둔다. 손댈 일이 없고, 지워도 다음 구동 때 다시 만들어진다.
+> `xapi/kakaoToken.json` 도 같은 자리에 두지만 **지우면 다시 만들어지지 않는다** - 브라우저 로그인으로
+> 인가코드를 받아 `API_kakao.get_토큰발급()` 으로 새로 발급해야 한다.
 
 ### 텔레그램 알림 — `xapi/API_telegram.py`
 
@@ -276,6 +314,9 @@ tg.send_문서(path_파일='...svg', s_설명='매매일보')
 ### 구동
 
 ```bash
+python launcher_collector.py   # 데이터 수집 (08:50 기동, 18:10 차트수집 뒤 종료)
+```
+```bash
 python launcher_trader.py      # 장중 실매매 (08:58 기동)
 ```
 ```bash
@@ -290,7 +331,7 @@ python launcher_analyzer.py    # 장 종료 후 분석
 
 ### 진척 대시보드 — `analyzer/대시보드.py`
 
-성능·안정성·목표대비 진척을 한 장으로 보여주는 HTML을 만들어 분석결과 폴더에 저장하고
+성능·안정성·목표대비 진척을 한 장으로 보여주는 HTML을 만들어 웹폴더의 `대시보드/` 에 저장하고
 텔레그램으로 링크를 보낸다. **매일 백테스팅 직후 런처가 자동 실행**한다.
 
 ```bash
@@ -407,17 +448,71 @@ python analyzer/지표탐색.py        # 지표 예측력 랭킹 (FEATURE_LIB에
 
 ## 5. 데이터 경로
 
-원천 데이터와 산출물은 리포지토리 밖 외장 볼륨에 둔다 (`ut/폴더manager.py`가 관리).
+> 코드가 저장 위치를 바꾸거나 새 산출물을 만들면 이 절을 같이 고친다.
 
-```
-매수매도/주식체결/주식체결_YYYYMMDD.csv     체결틱 원본 (cp949)
-매수매도/감시종목/dic_감시종목_YYYYMMDD.pkl  당일 틱수집 100종목
-                                          키: 조회순위포함 / 조회순위미포함 (합쳐서 100종목, 매매 여부와 무관)
-분석/백테스팅/클로드_틱기반매수세/
-  10_종목선정 → 20_매매정보 → 30_거래내역 → 40_결과정리 → 50_매매일보
-  _구간1검증/     구간1 홀드아웃 누적 기록
-  _wf캐시/ _지표탐색캐시/   검증 도구 캐시
-```
+기준 폴더는 셋이다. 실제 경로는 저장소에 두지 않고 설정에서 읽는다.
+
+| 표기 | 설정 | 담기는 것 |
+|---|---|---|
+| `{work}` | `config.json` 의 `folder_work` | 원천 데이터·분석 산출물 (외장 볼륨 권장, `ut/폴더manager.py` 가 하위 경로 정의) |
+| `{log}` | `config.json` 의 `folder_log` | 로그 |
+| `{web}` | `server_info.json` 의 `folder.server_kakao` | 웹으로 여는 파일 (대시보드·알림 첨부 이미지) |
+
+### `{work}/매수매도/` — 실매매 (보관기간 예외: 전부 원천)
+
+| 폴더 | 파일 | 만드는 곳 |
+|---|---|---|
+| `주식체결/` | `주식체결_YYYYMMDD.csv` 체결틱 원본 (cp949) | `trader/bot_실시간저장.py` |
+| `주문체결/` | `주문체결_YYYYMMDD.csv` 실계좌 주문체결 원장 (계좌번호 포함 - 외부 노출 금지) | `trader/bot_실시간저장.py` |
+| `감시종목/` | `dic_감시종목_YYYYMMDD.pkl` 당일 틱수집 100종목 (키: 조회순위포함 / 조회순위미포함) | `trader/bot_실시간수신.py` |
+| `종목잔고_tr/` | `dic_포지션_YYYYMMDD.pkl` 포지션 상태 (재시작 복원용) | `trader/bot_실시간매매.py` |
+| `신호탐색/` | 진입 신호 탐색 기록 - 경로만 정의돼 있고 지금 쓰는 모듈은 없음 | - |
+
+### `{work}/데이터/` — 수집 데이터
+
+| 폴더 | 파일 | 만드는 곳 |
+|---|---|---|
+| `조건검색/` | `df_조건검색_YYYYMMDD.pkl·csv` 키움 조건검색 전체 결과 (보관 예외) | `collector/bot_정보수집.py` |
+| `대상종목/` | `df_대상종목_YYYYMMDD.pkl·csv` '분석대상종목' 검색식 결과 (보관 예외) | `collector/bot_정보수집.py` |
+| `조회순위_tr/` | `df_조회순위_YYYYMMDD.csv` 장중 30초 조회순위 원본 (보관 예외) | `collector/bot_조회순위.py` |
+| `조회순위/` | `df_조회순위_YYYYMMDD.pkl·csv` 원본 정리본 (보관 예외) | `analyzer/bot_일봉수집.py` |
+| `차트정보/` | `dic_일봉차트_YYYYMMDD.pkl` 조회순위 종목 일봉 120개 | `analyzer/bot_일봉수집.py` |
+| `전체종목/` | `df_전체종목_YYYYMMDD.pkl·csv` 코스피·코스닥 상장목록 (보관 예외) | `collector/bot_정보수집.py` · `collector/bot_차트수집.py` |
+| `차트수집/일봉/` | `ohlcv_일봉_YYYY.db` - 테이블 `ohlcv_일봉_YYYYMM` | `collector/bot_차트수집.py` |
+| `차트수집/분봉/` | `ohlcv_분봉_YYYY_MM.db` - 테이블 `ohlcv_분봉_YYYYMMDD` (15:30 까지) | `collector/bot_차트수집.py` |
+| `차트수집/전체일자/` | `li_전체일자_YYYYMMDD.pkl` 개장일 목록 | `collector/bot_차트수집.py` |
+| `차트수집/임시저장/` | `dic_차트정보_{일봉·분봉}_YYYYMMDD.pkl` 수집 중 이어받기용 (db 반영 후 삭제) | `collector/bot_차트수집.py` |
+| `차트캐시/일봉1/` | `dic_차트캐시_1일봉_YYYYMMDD.pkl` 종목별 최근 25봉 + 이동평균 | `collector/bot_캐시생성.py` |
+
+### `{work}/분석/` — 분석 산출물
+
+| 폴더 | 파일 | 만드는 곳 |
+|---|---|---|
+| `10_지표생성/` · `10_지표생성_종목별/` | `dic_지표생성_YYYYMMDD.pkl` · 종목별 csv | `analyzer/bot_종목추천.py` |
+| `20_종목선정/` | `df_종목선정_YYYYMMDD.pkl·csv` | `analyzer/bot_종목추천.py` |
+| `30_우선순위/` | `df_우선순위_YYYYMMDD.pkl·csv` - 해당 단계가 꺼져 있어 지금은 안 만든다 | `analyzer/bot_종목추천.py` |
+| `40_종목알림/` | 추천종목 표 이미지 png (서버 `{web}/종목추천/` 에도 업로드) | `analyzer/bot_종목추천.py` |
+| `백테스팅/클로드_틱기반매수세/10_종목선정` → `20_매매정보` → `30_거래내역` → `40_결과정리` → `50_매매일보` | 일자별 pkl·csv. `40_결과정리_누적거래/`, `50_매매일보_그래프/`(svg, 서버 `{web}/틱기반매수세/` 에도 업로드) | `analyzer/bot_백테스팅_틱기반매수세.py` |
+| `백테스팅/클로드_틱기반매수세/_구간1검증/` | `df_구간1거래.pkl·csv`, `li_평가일자.pkl`, `_리포트_*.txt` | `analyzer/구간1검증.py` |
+| `백테스팅/클로드_틱기반매수세/_wf캐시/` | 지표 캐시, `_롤링손익행렬.pkl`, `_종목별손익행렬.pkl` | `워크포워드검증.py` · `롤링워크포워드.py` · `종목별롤링워크포워드.py` |
+| `백테스팅/클로드_틱기반매수세/` 바로 아래 | `_wf리포트_*.txt`, `_지표탐색리포트_*.txt`, `_종목별워크포워드_*.csv` | 각 검증 도구 |
+| `백테스팅/클로드_틱기반매수세/_지표탐색캐시/` | 지표 패널 캐시 | `analyzer/지표탐색.py` |
+
+`{work}/데이터`·`{work}/분석` 은 `config.json` 의 보관기간이 지나면 `ut/파일manager.py` 가 지운다.
+재생성할 수 없는 원천 폴더는 `LI_보존폴더` 로 예외 처리한다. 날짜 8자리가 없는 이름(차트 db 등)은 지우지 않는다.
+
+### 그 밖의 위치
+
+| 위치 | 파일 | 만드는 곳 |
+|---|---|---|
+| `{web}/대시보드/` | `대시보드_YYYYMMDD.html` (텔레그램으로 링크만 발송) | `analyzer/대시보드.py` |
+| `{log}/` | `bb_trader_·bb_analyzer_·bb_error_YYYYMMDD.log`, `kakao_YYYYMMDD.log` | `ut/로그maker.py`, `xapi/API_kakao.py` |
+| `xapi/` | `kiwoomToken.json`·`.lock`, `kakaoToken.json` | `xapi/RestAPI_kiwoom.py`, `xapi/API_kakao.py` |
+
+### 외부 프로젝트 의존
+
+없음. 2026-09-14 까지 spTraderV2 가 만들던 일봉 캐시·대상종목·조건검색·조회순위를 `collector/` 가 직접 만든다.
+옮기기 전 데이터(일봉 캐시는 보관기간 180일 안, 나머지는 전부)는 위 폴더로 복사해 두었다.
 
 ## 6. 개발 원칙
 

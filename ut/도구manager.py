@@ -4,6 +4,7 @@ import re
 
 import pandas as pd
 import json
+import sqlite3
 import paramiko
 
 
@@ -54,6 +55,37 @@ class ToolManager:
         if 'csv' in li_타입:
             path_csv = f'{path}.csv'
             df.to_csv(path_csv, encoding='cp949', index=False)
+
+    @staticmethod
+    def sql불러오기(path, s_테이블명=None, b_전체=False):
+        """ sql 파일을 불러와서 테이블명, 데이터 리턴 (spTraderV2 에서 가져옴 - 차트수집 db 용) """
+        # 파일 연결
+        con = sqlite3.connect(path)
+
+        # 전체 데이터 불러오기
+        if b_전체:
+            df_테이블명 = pd.read_sql(f'SELECT name FROM sqlite_master WHERE type="table"', con=con)
+            dic_데이터 = dict()
+            for s_테이블명 in df_테이블명['name']:
+                dic_데이터[s_테이블명] = pd.read_sql(f'SELECT * FROM {s_테이블명}', con=con)
+            con.close()
+
+            return dic_데이터
+
+        # 테이블명 불러오기
+        elif s_테이블명 is None:
+            df_테이블명 = pd.read_sql(f'SELECT name FROM sqlite_master WHERE type="table"', con=con)
+            li_테이블명 = list(df_테이블명['name'])
+            con.close()
+
+            return li_테이블명
+
+        # 데이터 불러오기
+        else:
+            df_데이터 = pd.read_sql(f'SELECT * FROM {s_테이블명}', con=con)
+            con.close()
+
+            return df_데이터
 
     # noinspection PyTypeChecker,PyUnusedLocal
     def sftp파일업로드(self, folder_로컬, s_서버폴더, s_파일명, n_파일보관일수):

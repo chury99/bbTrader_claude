@@ -134,8 +134,7 @@ class TraderBot:
         self.folder_감시종목 = dic_폴더정보['매수매도|감시종목']
         self.folder_잔고 = dic_폴더정보['매수매도|종목잔고']
         os.makedirs(self.folder_잔고, exist_ok=True)
-        self.folder_서버 = ('/Volumes/extSSD4tb/80_Backup/10_python_backup/ProjectWork/spTraderV2'
-                          if sys.platform == 'darwin' else '')
+        self.folder_일봉캐시 = os.path.join(dic_폴더정보['데이터|차트캐시'], '일봉1')   # collector/bot_캐시생성 결과
 
         # api 정의 (주문용 - 웹소켓 데이터는 수신 모듈이 큐로 전달)
         self.restapi = xapi.RestAPI_kiwoom.RestAPIkiwoom()
@@ -194,7 +193,7 @@ class TraderBot:
         li_감시종목 = dic_감시종목.get('조회순위포함', list()) + dic_감시종목.get('조회순위미포함', list())
 
         # 전일 일봉 필터 (거래대금/가격)
-        folder_일봉 = os.path.join(self.folder_서버, '데이터', '차트캐시', '일봉1')
+        folder_일봉 = self.folder_일봉캐시
         li_일봉파일 = sorted(파일 for 파일 in os.listdir(folder_일봉)
                         if '.pkl' in 파일 and re.findall(r'\d{8}', 파일)[0] < self.s_오늘)
         dic_일봉 = pd.read_pickle(os.path.join(folder_일봉, li_일봉파일[-1])) if len(li_일봉파일) > 0 else dict()

@@ -13,6 +13,7 @@
     },
     "로그이름_trader": "bb_trader",
     "로그이름_analyzer": "bb_analyzer",
+    "로그이름_collector": "bb_collector",
     "로그이름_rotator": "bb_trader",
     "로그이름_error": "bb_error",
     "파일보관기간(일)_analyzer": {

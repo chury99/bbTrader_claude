@@ -33,9 +33,8 @@ class AnalyzerBot:
         os.makedirs(self.folder_조회순위, exist_ok=True)
         os.makedirs(self.folder_차트정보, exist_ok=True)
 
-        # 추가 폴더 정의
-        self.folder_spv2 = '/Users/ProjectWork/spTraderV2' if sys.platform == 'darwin'\
-                    else 'E:/ProjectWork/spTraderV2' if sys.platform == 'win32' else ''
+        # 추가 폴더 정의 - 조회순위 원본 csv (collector/bot_조회순위 결과)
+        self.folder_조회순위원본 = dic_폴더정보['데이터|조회순위_tr']
 
         # 기준정보 정의
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
@@ -53,37 +52,10 @@ class AnalyzerBot:
         # 로그 기록
         self.make_로그(f'구동 시작')
 
-    def get_대상종목(self):
-        """ 분석 대상종목 데이터 확인하여 폴더에 저장 """
-        # 기준정보 정의
-        folder_소스 = os.path.join(self.folder_spv2, '데이터', '대상종목')
-        file_소스 = f'df_대상종목'
-        folder_타겟 = self.folder_대상종목
-        file_타겟 = f'df_대상종목'
-        os.makedirs(folder_타겟, exist_ok=True)
-
-        # 대상일자 확인
-        li_전체일자 = sorted(re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_소스)
-                         if file_소스 in 파일 and '.pkl' in 파일)
-        li_완료일자 = [re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_타겟)
-                   if file_타겟 in 파일 and '.pkl' in 파일]
-        li_대상일자 = [일자 for 일자 in li_전체일자 if 일자 not in li_완료일자]
-
-        # 대상종목 파일 저장
-        for s_일자 in li_대상일자:
-            # 소스 데이터 읽어오기
-            df_대상종목 = pd.read_pickle(os.path.join(folder_소스, f'{file_소스}_{s_일자}.pkl'))
-
-            # 타겟 데이터 저장
-            self.tool.df저장(df=df_대상종목, path=os.path.join(folder_타겟, f'{file_타겟}_{s_일자}'))
-
-            # 로그 기록
-            self.make_로그(f'{s_일자} - {len(df_대상종목):,.0f}종목')
-
     def get_조회순위(self):
         """ 조회순위 데이터 확인하여 폴더에 저장 """
         # 기준정보 정의
-        folder_소스 = os.path.join(self.folder_spv2, '데이터', '조회순위_tr')
+        folder_소스 = self.folder_조회순위원본
         file_소스 = f'df_조회순위'
         folder_타겟 = self.folder_조회순위
         file_타겟 = f'df_조회순위'
@@ -94,7 +66,9 @@ class AnalyzerBot:
                          if file_소스 in 파일 and '.csv' in 파일)
         li_완료일자 = [re.findall(r'\d{8}', 파일)[0] for 파일 in os.listdir(folder_타겟)
                    if file_타겟 in 파일 and '.pkl' in 파일]
-        li_대상일자 = [일자 for 일자 in li_전체일자 if 일자 not in li_완료일자]
+        # spTraderV2 에서 옮겨 온 옛 원본(이 프로젝트 시작 전)은 건너뜀 - 처리해 둔 첫 일자부터만 받는다
+        s_시작일자 = min(li_완료일자) if len(li_완료일자) > 0 else ''
+        li_대상일자 = [일자 for 일자 in li_전체일자 if 일자 not in li_완료일자 and 일자 >= s_시작일자]
 
         # 조회순위 파일 저장
         for s_일자 in li_대상일자:
@@ -180,7 +154,6 @@ class AnalyzerBot:
 def run():
     """ 실행 함수 """
     a = AnalyzerBot()
-    a.get_대상종목()
     a.get_조회순위()
     a.get_일봉차트()
 

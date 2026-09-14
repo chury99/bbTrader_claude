@@ -105,9 +105,8 @@ class AnalyzerBot:
         self.folder_틱 = dic_폴더정보['매수매도|주식체결']
         self.folder_감시종목 = dic_폴더정보['매수매도|감시종목']
 
-        # 추가 폴더 정의 - 일봉 캐시 (차트/종목선정용)
-        self.folder_서버 = ('/Volumes/extSSD4tb/80_Backup/10_python_backup/ProjectWork/spTraderV2'
-                          if sys.platform == 'darwin' else '')
+        # 추가 폴더 정의 - 일봉 캐시 (차트/종목선정용, collector/bot_캐시생성 결과)
+        self.folder_일봉캐시 = os.path.join(dic_폴더정보['데이터|차트캐시'], '일봉1')
 
         # 기준정보 정의
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
@@ -471,7 +470,7 @@ class AnalyzerBot:
     # -----------------------------------------------------------------
     def _load_일봉캐시(self, s_일자, b_전일=False):
         """ 일봉 캐시 로딩 (b_전일=True 시 해당일 이전 최신 캐시) """
-        folder_일봉 = os.path.join(self.folder_서버, '데이터', '차트캐시', '일봉1')
+        folder_일봉 = self.folder_일봉캐시
         s_조건 = (lambda 일자: 일자 < s_일자) if b_전일 else (lambda 일자: 일자 <= s_일자)
         li_파일 = sorted(파일 for 파일 in os.listdir(folder_일봉)
                        if '.pkl' in 파일 and s_조건(re.findall(r'\d{8}', 파일)[0]))
