@@ -34,6 +34,9 @@ class ToolManager:
         # 설정폴더 경로 주입 - kiwoomKey/server_info 등 나머지 설정파일 위치
         dic_config['folder_설정'] = self.folder_설정
 
+        # 카카오 모듈 경로 주입 - 모듈을 이 저장소 xapi 로 가져와서 설정파일로 받지 않는다 (호출부는 sys.path 등록 후 import)
+        dic_config['folder_kakao'] = os.path.join(self.folder_프로젝트, 'xapi')
+
         return dic_config
 
     @staticmethod

@@ -7,10 +7,6 @@
         "mac": "로그 보관 폴더",
         "win": "C:/Users/user/iCloudDrive/python_log"
     },
-    "folder_kakao": {
-        "mac": "카카오 알림 모듈(API_kakao.py) 이 있는 폴더",
-        "win": "C:/Users/user/PycharmProjects/api-kakao"
-    },
     "folder_kiwoom": {
         "mac": "이 저장소의 xapi 폴더 경로 (sys.path 등록용)",
         "win": "C:/Users/user/PycharmProjects/bbTrader_claude/xapi"

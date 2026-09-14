@@ -5,6 +5,7 @@ xconfig/*
 # 자동생성 - 접근토큰 (kiwoomKey.json 으로 발급받아 xapi 폴더에 캐싱)
 xapi/kiwoomToken.json
 xapi/kiwoomToken.lock
+xapi/kakaoToken.json
 
 # Python 캐시
 __pycache__/
