@@ -93,15 +93,21 @@ class CollectorBot:
         df_전체종목 = pd.read_pickle(os.path.join(self.folder_전체종목, f'df_전체종목_{self.s_오늘}.pkl'))
         dic_코드2종목명 = df_전체종목.set_index('종목코드')['종목명'].to_dict()
 
-        # 조건검색목록 확인
+        # 조건검색목록 확인 - 목록을 못 받으면 저장할 것이 없으므로 중단
         df_조검검색목록 = self.wsapi_모듈.SimpleWebsocketAPI().get_조건검색()
+        if len(df_조검검색목록) == 0:
+            raise RuntimeError('조건검색 목록 조회 실패 - 응답 없음')
         dic_번호2검색식명 = df_조검검색목록.set_index('검색식번호')['검색식명'].to_dict()
 
         # 데이터 받아오기
         li_df조건검색 = list()
         for s_검색식번호 in df_조검검색목록['검색식번호'].unique():
-            # 검색식 조회
-            df_검색종목 = self.wsapi_모듈.SimpleWebsocketAPI().get_조건검색(n_검색식번호=int(s_검색식번호))
+            # 검색식 조회 - 응답이 없어 건너뛴 검색식은 기록만 하고 다음으로
+            api_조건검색 = self.wsapi_모듈.SimpleWebsocketAPI()
+            df_검색종목 = api_조건검색.get_조건검색(n_검색식번호=int(s_검색식번호))
+            if api_조건검색.b_응답없음:
+                self.make_로그(f'!!! 조건검색 응답 없음 - {s_검색식번호} {dic_번호2검색식명[s_검색식번호]} '
+                             f'({api_조건검색.N_응답제한초}초 초과, 건너뜀)')
 
             # 데이터 정리
             s_검색식명 = dic_번호2검색식명[s_검색식번호]
@@ -125,6 +131,8 @@ class CollectorBot:
 
         # 데이터 통합
         df_조건검색 = pd.concat(li_df조건검색, axis=0)
+        if '분석대상종목' not in df_조건검색.loc[df_조건검색['종목명'].notna(), '검색식명'].values:
+            self.make_로그(f'!!! 분석대상종목 결과 없음 - 대상종목이 빈 파일로 저장됨')
 
         # 데이터 저장
         self.tool.df저장(df=df_조건검색, path=path_조건검색)

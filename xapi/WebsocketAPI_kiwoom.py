@@ -261,9 +261,13 @@ class WebsocketAPIkiwoom:
 
 # noinspection SpellCheckingInspection,NonAsciiCharacters,PyPep8Naming,PyAttributeOutsideInit
 class SimpleWebsocketAPI:
+    # 검색식 하나당 응답 제한시간 - 키움 서버가 특정 검색식(2026-09-15 '보유종목')에 응답을 안 보내 무한 대기한 적이 있다
+    N_응답제한초 = 15
+
     def __init__(self):
         # API 불러오기
         self.api = WebsocketAPIkiwoom()
+        self.b_응답없음 = False     # 마지막 get_조건검색 이 제한시간을 넘겨 건너뛰었는지
 
     async def req_조건검색(self, s_데이터타입, s_검색식번호='0', s_연속조회여부='N', s_연속조회키=''):
         """ 조건검색 조회 요청 """
@@ -363,6 +367,17 @@ class SimpleWebsocketAPI:
         # 수신값 리턴
         return self.li_목록조회, self.li_요청실시간
 
+    async def _run_제한시간(self, n_검색식번호):
+        """ run_조건검색 을 제한시간 안에서 실행 - 넘기면 TimeoutError, 어느 경우든 연결은 닫는다 """
+        try:
+            return await asyncio.wait_for(self.run_조건검색(n_검색식번호=n_검색식번호), timeout=self.N_응답제한초)
+        finally:
+            if self.api.websocket is not None:
+                try:
+                    await self.api.websocket.close()
+                except Exception:
+                    pass
+
     def get_조건검색(self, n_검색식번호=None):
         """ 조건검색에 등록된 대상종목 가져오기 """
         # 기준정보 정의
@@ -370,16 +385,25 @@ class SimpleWebsocketAPI:
                     '13': '누적거래량', '16': '시가', '17': '고가', '18': '저가', 'jmcode': '종목코드'}
         n_검색식번호_조회 = n_검색식번호 if n_검색식번호 is not None else 0
 
-        # 조검검색 실행 - 조회 실패 시 5회 재실행
+        # 조검검색 실행 - 결과가 빈 목록이면 5회까지 재실행, 제한시간을 넘기면 건너뜀
         li_조건검색목록, li_검색종목 = (None, None)
-        for _ in range(5):
-            li_조건검색목록, li_검색종목 = asyncio.run(self.run_조건검색(n_검색식번호=n_검색식번호_조회))
+        self.b_응답없음 = False
+        for n_시도 in range(5):
+            # 재시도는 연결 객체를 새로 만든다 - 수신을 끝낸 객체(동작중 False)를 다시 쓰면 수신 루프가 바로 끝나 영원히 대기한다
+            if n_시도 > 0:
+                time.sleep(1)
+                self.api = WebsocketAPIkiwoom()
+            try:
+                li_조건검색목록, li_검색종목 = asyncio.run(self._run_제한시간(n_검색식번호=n_검색식번호_조회))
+            except (asyncio.TimeoutError, TimeoutError):
+                li_조건검색목록, li_검색종목 = (None, None)
+                self.b_응답없음 = True
+                break
             if li_검색종목 is None or len(li_검색종목) > 0:
                 break
-            time.sleep(1)
 
         # 데이터 처리 - 조건검색목록
-        df_조검검색목록 = pd.DataFrame(li_조건검색목록)
+        df_조검검색목록 = pd.DataFrame(li_조건검색목록) if li_조건검색목록 is not None else pd.DataFrame(columns=[0, 1])
         df_조검검색목록.columns = ['검색식번호', '검색식명']
 
         # 데이터 처리 - 대상종목
