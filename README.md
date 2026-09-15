@@ -476,7 +476,7 @@ python analyzer/지표탐색.py        # 지표 예측력 랭킹 (FEATURE_LIB에
 | `대상종목/` | `df_대상종목_YYYYMMDD.pkl·csv` '분석대상종목' 검색식 결과 (보관 예외) | `collector/bot_정보수집.py` |
 | `조회순위_tr/` | `df_조회순위_YYYYMMDD.csv` 장중 30초 조회순위 원본 (보관 예외) | `collector/bot_조회순위.py` |
 | `조회순위/` | `df_조회순위_YYYYMMDD.pkl·csv` 원본 정리본 (보관 예외) | `analyzer/bot_일봉수집.py` |
-| `차트정보/` | `dic_일봉차트_YYYYMMDD.pkl` 조회순위 종목 일봉 120개 | `analyzer/bot_일봉수집.py` |
+| `차트정보/` | `dic_일봉차트_YYYYMMDD.pkl` 조회순위 종목 일봉 120개 - 대상종목 파일이 없는 날은 만들지 않는다 (종목추천이 그날 대상종목을 읽음). `_백업_대상종목결측/` 에 대상종목 없는 8/28~9/2 분을 옮겨 둠 | `analyzer/bot_일봉수집.py` |
 | `전체종목/` | `df_전체종목_YYYYMMDD.pkl·csv` 코스피·코스닥 상장목록 (보관 예외) | `collector/bot_정보수집.py` · `collector/bot_차트수집.py` |
 | `차트수집/일봉/` | `ohlcv_일봉_YYYY.db` - 테이블 `ohlcv_일봉_YYYYMM` | `collector/bot_차트수집.py` |
 | `차트수집/분봉/` | `ohlcv_분봉_YYYY_MM.db` - 테이블 `ohlcv_분봉_YYYYMMDD` (15:30 까지) | `collector/bot_차트수집.py` |

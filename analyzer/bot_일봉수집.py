@@ -99,6 +99,13 @@ class AnalyzerBot:
                    if file_타겟 in 파일 and '.pkl' in 파일]
         li_대상일자 = [일자 for 일자 in li_전체일자 if 일자 not in li_완료일자]
 
+        # 대상종목이 없는 날은 만들지 않음 - 차트정보를 쓰는 종목추천이 그날 대상종목을 읽다가 멈춘다 (8/28~9/2 결측으로 9/15까지 매일 멈춤)
+        li_대상종목없음 = [일자 for 일자 in li_대상일자
+                     if not os.path.exists(os.path.join(self.folder_대상종목, f'df_대상종목_{일자}.pkl'))]
+        if len(li_대상종목없음) > 0:
+            self.make_로그(f'대상종목 파일 없는 날 건너뜀 - {li_대상종목없음}')
+        li_대상일자 = [일자 for 일자 in li_대상일자 if 일자 not in li_대상종목없음]
+
         # 일자별 매수매도 정보 생성
         for s_일자 in li_대상일자:
             # 소스파일 불러오기
