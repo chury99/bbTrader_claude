@@ -27,6 +27,7 @@ class LauncherAnalyzer:
 
         # 기준정보 정의
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
+        self.folder_실행표시 = ut.폴더manager.FolderManager().dic_폴더정보['데이터|실행표시']
 
         # 카카오 API 연결
         sys.path.append(dic_config['folder_kakao'])
@@ -61,6 +62,11 @@ class LauncherAnalyzer:
                 else:
                     self.kakao.send_메세지(s_사용자='알림봇', s_수신인='여봉이', s_메세지=f'{p_봇.name} 모듈 재시작')
                     dt_에러발생 = pd.Timestamp.now()
+
+        # 완료 표시 - 수집 실행기의 차트수집이 이 파일을 보고 시작한다 (같은 키움 키 조회가 겹치지 않게, 성공·실패 무관)
+        os.makedirs(self.folder_실행표시, exist_ok=True)
+        with open(os.path.join(self.folder_실행표시, f'일봉수집완료_{self.s_오늘}'), mode='wt', encoding='utf-8') as f:
+            f.write(f'{pd.Timestamp.now():%H:%M:%S} exitcode={p_봇.exitcode}\n')
 
         # 로그 기록
         if p_봇.exitcode <= 0:

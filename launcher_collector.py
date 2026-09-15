@@ -8,8 +8,10 @@ import multiprocessing as mp
 import collector, ut
 
 
-# 차트수집 시작시각 - 시간외 단일가(16:00~18:00)가 끝난 뒤라 당일 일봉이 확정값이고, 분석 실행기(15:40)와 키움 조회가 겹치지 않는다
-S_차트수집시각 = '18:10:00'
+# 차트수집 시작 - 장 종료시각 + 1분(15:36)부터 기다리다가, 분석 실행기(15:40)의 일봉수집이 끝났다는 표시 파일이 생기면 바로 시작
+#   spTraderV2 와 같은 시각대에 받아 과거 db 와 기준을 맞추고, 같은 키움 키로 조회가 겹쳐 호출 제한에 걸리는 것은 피한다
+#   표시 파일이 한계시각까지 안 생기면(분석 실행기 미기동 등) 기다리지 않고 시작한다
+S_차트수집한계시각 = '16:10:00'
 
 
 # noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode
@@ -18,7 +20,7 @@ class LauncherCollector:
 
         · 기동 즉시  조회순위   종료시각까지 30초마다 (별도 프로세스, 다른 단계가 막혀도 계속 돈다)
         · 기동 즉시  정보수집   전체종목 · 조건검색 · 대상종목 (10분 넘게 안 끝나면 끊고 알림)
-        · 18:10      차트수집   전체종목 일봉·분봉 db → 캐시생성 일봉 캐시
+        · 15:36~     차트수집   분석 실행기 일봉수집 완료 표시를 확인하면 시작 (한계 16:10) → 캐시생성 일봉 캐시
         늦게 띄우면 지난 단계는 곧바로 실행한다 (조회순위는 종료시각이 지났으면 바로 끝남) """
 
     # noinspection PyUnresolvedReferences
@@ -35,6 +37,9 @@ class LauncherCollector:
 
         # 기준정보 정의
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
+        self.dt_차트수집대기 = pd.Timestamp(dic_config['종료시각']) + pd.Timedelta(minutes=1)
+        self.path_일봉수집완료 = os.path.join(ut.폴더manager.FolderManager().dic_폴더정보['데이터|실행표시'],
+                                         f'일봉수집완료_{self.s_오늘}')
 
         # 카카오 API 연결
         sys.path.append(dic_config['folder_kakao'])
@@ -117,11 +122,18 @@ def run():
     p_조회순위 = l.start_조회순위()
     l.run_정보수집()
 
-    # 차트수집 시각까지 대기
-    dt_차트수집 = pd.Timestamp(S_차트수집시각)
-    while pd.Timestamp.now() < dt_차트수집:
-        print(f'\r[{pd.Timestamp.now():%H:%M:%S}] 차트수집({S_차트수집시각}) - {str(dt_차트수집 - pd.Timestamp.now()).split(" ")[-1].split(".")[0]} 후 실행',
-              end='', flush=True)
+    # 차트수집 대기 - 대기시각(15:36)이 지나고, 분석 실행기 일봉수집 완료 표시가 생기거나 한계시각이 되면 시작
+    dt_한계 = pd.Timestamp(S_차트수집한계시각)
+    while True:
+        dt_현재 = pd.Timestamp.now()
+        if dt_현재 >= l.dt_차트수집대기 and os.path.exists(l.path_일봉수집완료):
+            l.make_로그(f'분석 실행기 일봉수집 완료 확인 - 차트수집 시작')
+            break
+        if dt_현재 >= dt_한계:
+            l.make_로그(f'!!! {S_차트수집한계시각} 까지 일봉수집 완료 표시 없음 - 기다리지 않고 차트수집 시작')
+            break
+        s_상태 = f'{l.dt_차트수집대기:%H:%M} 부터 일봉수집 완료 대기' if dt_현재 < l.dt_차트수집대기 else '일봉수집 완료 대기 중'
+        print(f'\r[{dt_현재:%H:%M:%S}] 차트수집 - {s_상태} (한계 {S_차트수집한계시각})', end='', flush=True)
         time.sleep(1)
     print()
 
