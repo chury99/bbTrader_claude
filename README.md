@@ -185,13 +185,14 @@
 
 ```
 bbTrader_claude/
-├── launcher_collector.py     수집 런처 (08:50 기동) - 조회순위(장중) · 정보수집(즉시) · 15:36~ 분석 런처 일봉수집이 끝나면 차트수집 → 캐시생성
+├── launcher_collector.py     수집 런처 (08:50 기동) - 조회순위(장중) · 정보수집(즉시) · 14:00 거북이추천 카톡 · 15:36~ 분석 런처 일봉수집이 끝나면 차트수집 → 캐시생성
 ├── launcher_trader.py        실매매 런처 (08:58 기동) - 수신·저장·매매 3개 워커를 멀티프로세스로 구동·감시
 ├── launcher_analyzer.py      분석 런처 (15:40 기동) - 일봉수집 → 종목추천 → 백테스팅 → 대시보드 → 파일정리
 ├── README.md
 ├── .gitignore
 │
 ├── collector/                데이터 수집 (spTraderV2 에서 가져와 독립)
+│   ├── bot_거북이추천.py       14:00 조회순위 종목 중 '거북이추천' 검색식·대상종목에 든 종목 → 카톡 (당일 파일 있으면 재발송 안 함)
 │   ├── bot_정보수집.py         전체종목 · 조건검색(웹소켓) · 대상종목 ('분석대상종목' 검색식)
 │   ├── bot_조회순위.py         장중 30초마다 실시간 조회순위 csv
 │   ├── bot_차트수집.py         전체종목 일봉·분봉 sqlite db (종목별 기간 일괄조회, 08:30 수집마감)
@@ -314,7 +315,7 @@ tg.send_문서(path_파일='...svg', s_설명='매매일보')
 ### 구동
 
 ```bash
-python launcher_collector.py   # 데이터 수집 (08:50 기동, 15:36 부터 분석 런처 일봉수집 완료를 기다려 차트수집 뒤 종료)
+python launcher_collector.py   # 데이터 수집 (08:50 기동, 14:00 거북이추천 카톡, 15:36 부터 분석 런처 일봉수집 완료를 기다려 차트수집 뒤 종료)
 ```
 ```bash
 python launcher_trader.py      # 장중 실매매 (08:58 기동)
@@ -483,6 +484,7 @@ python analyzer/지표탐색.py        # 지표 예측력 랭킹 (FEATURE_LIB에
 | `차트수집/전체일자/` | `li_전체일자_YYYYMMDD.pkl` 개장일 목록 | `collector/bot_차트수집.py` |
 | `차트수집/임시저장/` | `dic_차트정보_{일봉·분봉}_YYYYMMDD.pkl` 수집 중 이어받기용 (db 반영 후 삭제) | `collector/bot_차트수집.py` |
 | `차트캐시/일봉1/` | `dic_차트캐시_1일봉_YYYYMMDD.pkl` 종목별 최근 25봉 + 이동평균 | `collector/bot_캐시생성.py` |
+| `종목추천/거북이/` | `df_종목추천_거북이_YYYYMMDD.pkl·csv` 거북이 추천종목 (8/27 이전분은 spTraderV2 에서 복사) | `collector/bot_거북이추천.py` |
 | `실행표시/` | `일봉수집완료_YYYYMMDD` 분석 런처 일봉수집이 끝난 시각 - 수집 런처가 이걸 보고 차트수집을 시작 (같은 키움 키 조회 겹침 방지, 16:10 까지 없으면 그냥 시작) | `launcher_analyzer.py` |
 
 ### `{work}/분석/` — 분석 산출물

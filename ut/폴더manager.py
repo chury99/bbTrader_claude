@@ -40,6 +40,7 @@ class FolderManager:
         self.dic_폴더정보['데이터|전체종목'] = os.path.join(folder_데이터, '전체종목')
         self.dic_폴더정보['데이터|차트캐시'] = os.path.join(folder_데이터, '차트캐시')     # 차트수집 db 로 만든 일봉 캐시
         self.dic_폴더정보['데이터|실행표시'] = os.path.join(folder_데이터, '실행표시')     # 실행기 간 순서 맞춤용 완료 표시 파일
+        self.dic_폴더정보['데이터|종목추천'] = os.path.join(folder_데이터, '종목추천')     # 거북이 추천종목 (collector)
 
         # 분석 폴더 정의
         folder_분석 = os.path.join(folder_work, '분석')

@@ -13,6 +13,9 @@ import collector, ut
 #   표시 파일이 한계시각까지 안 생기면(분석 실행기 미기동 등) 기다리지 않고 시작한다
 S_차트수집한계시각 = '16:10:00'
 
+# 거북이 추천종목 카톡 - spTraderV2 와 같은 시각 (그 시각까지 쌓인 조회순위 기준)
+S_거북이추천시각 = '14:00:00'
+
 
 # noinspection NonAsciiCharacters,PyPep8Naming,SpellCheckingInspection,PyUnreachableCode
 class LauncherCollector:
@@ -20,6 +23,7 @@ class LauncherCollector:
 
         · 기동 즉시  조회순위   종료시각까지 30초마다 (별도 프로세스, 다른 단계가 막혀도 계속 돈다)
         · 기동 즉시  정보수집   전체종목 · 조건검색 · 대상종목 (10분 넘게 안 끝나면 끊고 알림)
+        · 14:00      거북이추천 조회순위 × 거북이추천 검색식 → 카톡 (당일 이미 보냈으면 건너뜀)
         · 15:36~     차트수집   분석 실행기 일봉수집 완료 표시를 확인하면 시작 (한계 16:10) → 캐시생성 일봉 캐시
         늦게 띄우면 지난 단계는 곧바로 실행한다 (조회순위는 종료시각이 지났으면 바로 끝남) """
 
@@ -96,6 +100,10 @@ class LauncherCollector:
         self.make_로그(f'{p_봇.name} 구동')
         return p_봇
 
+    def run_거북이추천(self):
+        """ 거북이 추천종목 선정·카톡 발송 """
+        self.run_모듈(obj_타겟=collector.bot_거북이추천.run, s_네임='bot_거북이추천', n_제한초=300)
+
     def run_차트수집(self):
         """ 전체종목 일봉·분봉 수집 - 받은 데까지 저장돼 있어 비정상 종료 시 다시 띄워 이어받는다 """
         self.run_모듈(obj_타겟=collector.bot_차트수집.run, s_네임='bot_차트수집', b_재실행=True)
@@ -123,9 +131,17 @@ def run():
     l.run_정보수집()
 
     # 차트수집 대기 - 대기시각(15:36)이 지나고, 분석 실행기 일봉수집 완료 표시가 생기거나 한계시각이 되면 시작
+    #   기다리는 동안 14:00 이 되면 거북이추천을 한 번 돌린다
     dt_한계 = pd.Timestamp(S_차트수집한계시각)
+    dt_거북이추천 = pd.Timestamp(S_거북이추천시각)
+    b_거북이추천 = True
     while True:
         dt_현재 = pd.Timestamp.now()
+        if b_거북이추천 and dt_현재 >= dt_거북이추천:
+            print()
+            l.run_거북이추천()
+            b_거북이추천 = False
+            continue
         if dt_현재 >= l.dt_차트수집대기 and os.path.exists(l.path_일봉수집완료):
             l.make_로그(f'분석 실행기 일봉수집 완료 확인 - 차트수집 시작')
             break
