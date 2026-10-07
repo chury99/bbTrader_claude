@@ -1,7 +1,6 @@
 import _queue
 import os
 import sys
-import gzip
 import json
 import time
 import shutil
@@ -13,14 +12,14 @@ import ut, xapi
 
 
 # ===== 호가잔량 (2026-10-07) =====
-# 체결틱과 함께 주식호가잔량(0D)을 받아 gzip csv 로 저장한다 - 체결보다 먼저 움직이는 정보(매도 잔량 소진 등)가 있는지 보려는 원천 자료
+# 체결틱과 함께 주식호가잔량(0D)을 받아 csv 로 저장한다 (바로 읽을 수 있게 압축하지 않는다) - 체결보다 먼저 움직이는 정보(매도 잔량 소진 등)가 있는지 보려는 원천 자료
 #   10단계 매도·매수 호가와 수량, 총잔량, 예상체결가·수량 (직전대비·LP·KRX/NXT 구분 잔량은 뺀다). 매매에는 쓰지 않는다
 #   호가는 체결보다 훨씬 자주 와서 디스크를 많이 쓴다 → 저장 폴더 디스크 여유가 N_호가최소여유 미만이면 호가만 버린다 (체결틱이 우선)
 LI_호가컬럼 = (['호가시간'] + [f'매도호가{i}' for i in range(1, 11)] + [f'매도호가수량{i}' for i in range(1, 11)]
              + [f'매수호가{i}' for i in range(1, 11)] + [f'매수호가수량{i}' for i in range(1, 11)]
              + ['매도호가총잔량', '매수호가총잔량', '예상체결가', '예상체결수량'])
 N_호가배치 = 2000
-N_호가최소여유 = 20e9                # 바이트
+N_호가최소여유 = 5e9                 # 바이트
 
 
 def 호가행(s_종목코드, dic_값, fid=None):
@@ -30,12 +29,12 @@ def 호가행(s_종목코드, dic_값, fid=None):
 
 
 def 호가쓰기(path, li_행, make_로그=None):
-    """ gzip csv 에 덧붙인다 (파일이 없으면 머리줄부터) - 디스크 여유가 모자라면 버리고 False """
+    """ csv 에 덧붙인다 (파일이 없으면 머리줄부터) - 디스크 여유가 모자라면 버리고 False """
     try:
         if shutil.disk_usage(os.path.dirname(path)).free < N_호가최소여유:
             return False
         b_새파일 = not os.path.exists(path)
-        with gzip.open(path, mode='at', encoding='cp949') as f:
+        with open(path, mode='at', encoding='cp949') as f:
             if b_새파일:
                 f.write(','.join(['종목코드'] + LI_호가컬럼) + '\n')
             f.write('\n'.join(li_행) + '\n')
@@ -112,8 +111,8 @@ class TraderBot:
         dic_n배치크기, dic_path, dic_li컬럼명 = self.set_기준정보()
         dic_li배치데이터 = {key: [] for key in dic_n배치크기}
 
-        # 호가잔량은 따로 gzip 으로 모은다 (체결·주문 파일 쓰기와 분리 - 실패해도 체결 저장에 영향 없게)
-        path_호가 = os.path.join(self.folder_주식호가, f'주식호가_{self.s_오늘}.csv.gz')
+        # 호가잔량은 따로 모은다 (체결·주문 파일 쓰기와 분리 - 실패해도 체결 저장에 영향 없게)
+        path_호가 = os.path.join(self.folder_주식호가, f'주식호가_{self.s_오늘}.csv')
         fid_호가 = xapi.wsFID_kiwoom.fid_주식호가잔량_0D()
         li_호가배치 = list()
         b_호가중단로그 = False

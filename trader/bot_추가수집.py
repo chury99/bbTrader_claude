@@ -52,7 +52,7 @@ class TraderBot:
         self.s_오늘 = pd.Timestamp.now().strftime('%Y%m%d')
         self.dt_종료 = pd.Timestamp(dic_config['종료시각']) - pd.Timedelta(seconds=N_종료여유초)
         self.path_틱 = os.path.join(self.folder_추가틱, f'주식체결추가_{self.s_오늘}.csv')
-        self.path_호가 = os.path.join(self.folder_호가, f'주식호가추가_{self.s_오늘}.csv.gz')     # 2026-10-07 호가잔량도 함께
+        self.path_호가 = os.path.join(self.folder_호가, f'주식호가추가_{self.s_오늘}.csv')     # 2026-10-07 호가잔량도 함께
         self.li_추가종목 = list()
 
         # 로그 기록
@@ -98,7 +98,7 @@ class TraderBot:
         self.make_로그(f'총 {len(self.li_추가종목)}개 (본 감시 {len(li_감시)}개 제외, 점수 {df["점수"].min():.2f} ~ {df["점수"].max():.2f})')
 
     async def exec_저장(self, wsapi):
-        """ 주식체결은 csv, 주식호가잔량은 gzip csv 로 묶어 쓴다 (주문체결은 이 계좌로 주문을 내지 않으므로 버린다) """
+        """ 주식체결은 csv, 주식호가잔량은 별도 csv 로 묶어 쓴다 (주문체결은 이 계좌로 주문을 내지 않으므로 버린다) """
         fid = xapi.wsFID_kiwoom.fid_주식체결_0B()
         fid_호가 = xapi.wsFID_kiwoom.fid_주식호가잔량_0D()
         li_호가 = list(); b_호가중단로그 = False

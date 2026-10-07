@@ -29,7 +29,7 @@ class FolderManager:
         self.dic_폴더정보['매수매도|주식체결'] = os.path.join(folder_매수매도, '주식체결')
         self.dic_폴더정보['매수매도|감시종목추가'] = os.path.join(folder_매수매도, '감시종목추가')   # 두 번째 계좌로 더 받는 급등 후보 100 (trader/bot_추가수집)
         self.dic_폴더정보['매수매도|주식체결추가'] = os.path.join(folder_매수매도, '주식체결추가')   # 그 체결틱 원본 (매매에는 안 쓴다)
-        self.dic_폴더정보['매수매도|주식호가'] = os.path.join(folder_매수매도, '주식호가')           # 호가잔량 원본 gzip - 본 감시 주식호가_ · 추가 감시 주식호가추가_
+        self.dic_폴더정보['매수매도|주식호가'] = os.path.join(folder_매수매도, '주식호가')           # 호가잔량 원본 csv - 본 감시 주식호가_ · 추가 감시 주식호가추가_
 
         # 데이터 폴더 정의
         folder_데이터 = os.path.join(folder_work, '데이터')
