@@ -1,13 +1,49 @@
 import _queue
 import os
 import sys
+import gzip
 import json
 import time
+import shutil
 
 import pandas as pd
 import multiprocessing as mp
 
 import ut, xapi
+
+
+# ===== 호가잔량 (2026-10-07) =====
+# 체결틱과 함께 주식호가잔량(0D)을 받아 gzip csv 로 저장한다 - 체결보다 먼저 움직이는 정보(매도 잔량 소진 등)가 있는지 보려는 원천 자료
+#   10단계 매도·매수 호가와 수량, 총잔량, 예상체결가·수량 (직전대비·LP·KRX/NXT 구분 잔량은 뺀다). 매매에는 쓰지 않는다
+#   호가는 체결보다 훨씬 자주 와서 디스크를 많이 쓴다 → 저장 폴더 디스크 여유가 N_호가최소여유 미만이면 호가만 버린다 (체결틱이 우선)
+LI_호가컬럼 = (['호가시간'] + [f'매도호가{i}' for i in range(1, 11)] + [f'매도호가수량{i}' for i in range(1, 11)]
+             + [f'매수호가{i}' for i in range(1, 11)] + [f'매수호가수량{i}' for i in range(1, 11)]
+             + ['매도호가총잔량', '매수호가총잔량', '예상체결가', '예상체결수량'])
+N_호가배치 = 2000
+N_호가최소여유 = 20e9                # 바이트
+
+
+def 호가행(s_종목코드, dic_값, fid=None):
+    """ 주식호가잔량 수신값 → csv 한 줄 (없는 항목은 빈칸) - trader/bot_추가수집 도 같이 쓴다 """
+    fid = fid if fid is not None else xapi.wsFID_kiwoom.fid_주식호가잔량_0D()
+    return ','.join([s_종목코드] + [str(dic_값.get(fid.dic_이름2코드[이름], '')) for 이름 in LI_호가컬럼])
+
+
+def 호가쓰기(path, li_행, make_로그=None):
+    """ gzip csv 에 덧붙인다 (파일이 없으면 머리줄부터) - 디스크 여유가 모자라면 버리고 False """
+    try:
+        if shutil.disk_usage(os.path.dirname(path)).free < N_호가최소여유:
+            return False
+        b_새파일 = not os.path.exists(path)
+        with gzip.open(path, mode='at', encoding='cp949') as f:
+            if b_새파일:
+                f.write(','.join(['종목코드'] + LI_호가컬럼) + '\n')
+            f.write('\n'.join(li_행) + '\n')
+        return True
+    except Exception as e:
+        if make_로그 is not None:
+            make_로그(f'호가 파일 쓰기 - {e}')
+        return False
 
 
 # noinspection NonAsciiCharacters,SpellCheckingInspection,PyPep8Naming,PyTypeChecker,PyAttributeOutsideInit
@@ -28,8 +64,10 @@ class TraderBot:
         dic_폴더정보 = ut.폴더manager.FolderManager().dic_폴더정보
         self.folder_주문체결 = dic_폴더정보['매수매도|주문체결']
         self.folder_주식체결 = dic_폴더정보['매수매도|주식체결']
+        self.folder_주식호가 = dic_폴더정보['매수매도|주식호가']
         os.makedirs(self.folder_주문체결, exist_ok=True)
         os.makedirs(self.folder_주식체결, exist_ok=True)
+        os.makedirs(self.folder_주식호가, exist_ok=True)
 
         # queue 생성
         self.queue_mp_수신2저장 = queue_mp_수신2저장
@@ -74,6 +112,12 @@ class TraderBot:
         dic_n배치크기, dic_path, dic_li컬럼명 = self.set_기준정보()
         dic_li배치데이터 = {key: [] for key in dic_n배치크기}
 
+        # 호가잔량은 따로 gzip 으로 모은다 (체결·주문 파일 쓰기와 분리 - 실패해도 체결 저장에 영향 없게)
+        path_호가 = os.path.join(self.folder_주식호가, f'주식호가_{self.s_오늘}.csv.gz')
+        fid_호가 = xapi.wsFID_kiwoom.fid_주식호가잔량_0D()
+        li_호가배치 = list()
+        b_호가중단로그 = False
+
         # 프로그램 시작 시 파일이 없으면 헤더를 미리 기록
         for s_항목명, path_실시간파일 in dic_path.items():
             if not os.path.exists(path_실시간파일):
@@ -98,6 +142,18 @@ class TraderBot:
             for dic_데이터 in li_수신데이터:
                 # 종료 신호 확인
                 b_동작중 = False if dic_데이터 == ['종료'] else True
+
+                # 호가잔량 - 별도 묶음 (매 N_호가배치 줄 또는 종료 시 쓰기)
+                if b_동작중 and dic_데이터.get('name') == '주식호가잔량':
+                    try:
+                        li_호가배치.append(호가행(dic_데이터['item'], dic_데이터['values'], fid=fid_호가))
+                    except Exception as e:
+                        self.make_로그(f'호가 변환 - {e}')
+                    continue
+
+                # 등록하지 않은 종류는 버린다 (KeyError 로 저장 모듈이 죽지 않게)
+                if b_동작중 and dic_데이터.get('name') not in dic_li배치데이터:
+                    continue
 
                 # 수신 데이터를 li_배치데이터에 추가
                 if b_동작중:
@@ -141,6 +197,13 @@ class TraderBot:
                             dic_li배치데이터[s_항목명].clear()
                         except Exception as e:
                             self.make_로그(f'파일 쓰기 - {e}')
+
+            # 호가 묶음 쓰기 (종료 신호면 남은 것까지)
+            if li_호가배치 and (len(li_호가배치) >= N_호가배치 or not b_동작중):
+                if not 호가쓰기(path_호가, li_호가배치, make_로그=self.make_로그) and not b_호가중단로그:
+                    self.make_로그(f'!!! 호가 저장 건너뜀 (디스크 여유 {N_호가최소여유 / 1e9:.0f}GB 미만 또는 쓰기 실패) - 체결틱 저장은 계속')
+                    b_호가중단로그 = True
+                li_호가배치 = list()
 
             # 종료 신호 수신 시 종료
             if not b_동작중:

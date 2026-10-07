@@ -57,6 +57,11 @@ class LauncherTrader:
         for p_봇 in dic_프로세스.values():
             p_봇.start()
 
+        # 선택 모듈 - 두 번째 계좌로 추가 감시종목 틱 수집 (trader/bot_추가수집)
+        #   본 수신·저장·매매와 달리 감시 루프에 넣지 않는다 - 죽어도 재시작·알림·전체 중단 없이 로그만 남고, 종료시각에 끈다
+        p_추가 = mp.Process(target=trader.bot_추가수집.run, name='bot_추가수집')
+        p_추가.start()
+
         # 감시 루프 구동
         b_동작중 = True
         dt_에러발생 = pd.Timestamp.now()
@@ -94,8 +99,18 @@ class LauncherTrader:
             if not b_동작중:
                 break
 
+            # 선택 모듈 종료 (스스로 30초 먼저 끝내지만, 남아 있으면 끈다)
+            if pd.Timestamp.now() > pd.Timestamp(self.s_종료시각) and p_추가.is_alive():
+                p_추가.terminate()
+
             # 확인 주기 설정
             time.sleep(0.1)
+
+        # 선택 모듈 종료 처리 - 본 모듈 종료를 기다리게 하지 않는다
+        p_추가.join(timeout=60)
+        if p_추가.is_alive():
+            p_추가.terminate()
+        self.make_로그(f'{p_추가.name} 구동 완료 (code {p_추가.exitcode})')
 
         # 프로세스 종료 처리
         for p_봇 in dic_프로세스.values():

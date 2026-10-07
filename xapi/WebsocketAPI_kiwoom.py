@@ -12,7 +12,7 @@ import ut, xapi
 
 # noinspection SpellCheckingInspection,NonAsciiCharacters,PyPep8Naming,PyAttributeOutsideInit
 class WebsocketAPIkiwoom:
-    def __init__(self):
+    def __init__(self, s_계좌번호=None):
         # config 읽어 오기
         self.folder_베이스 = os.path.dirname(os.path.abspath(__file__))
         self.folder_프로젝트 = os.path.dirname(self.folder_베이스)
@@ -42,8 +42,8 @@ class WebsocketAPIkiwoom:
         self.queue_저장 = asyncio.Queue()
         self.queue_조건검색 = asyncio.Queue()
 
-        # 토큰 발급
-        self.s_접근토큰 = xapi.RestAPI_kiwoom.RestAPIkiwoom().s_접근토큰
+        # 토큰 발급 - 계좌번호를 주면 그 계좌 토큰 (trader/bot_추가수집 의 두 번째 계좌), 없으면 config 계좌번호
+        self.s_접근토큰 = xapi.RestAPI_kiwoom.RestAPIkiwoom(s_계좌번호=s_계좌번호).s_접근토큰
 
     def info_서버주소(self, s_서비스='공통'):
         """ 서비스명을 입력받아 해당하는 서버 주소 리턴 """

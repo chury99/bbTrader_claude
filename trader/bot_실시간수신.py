@@ -123,9 +123,9 @@ class TraderBot:
                     if '.pkl' in 파일 and re.findall(r'\d{8}', 파일)[0] <= self.s_오늘)
         dic_감시종목 = pd.read_pickle(os.path.join(self.folder_감시종목, s_파일명))
 
-        # 감시종목 등록 - 두 키를 합친 100종목 전부가 실시간 수신 대상
+        # 감시종목 등록 - 두 키를 합친 100종목 전부가 실시간 수신 대상 (2026-10-07 주식호가잔량 추가 - 저장만 하고 매매에는 안 넘긴다)
         li_감시종목 = dic_감시종목.get('조회순위포함', list()) + dic_감시종목.get('조회순위미포함', list())
-        res = await self.wsapi.req_실시간등록(li_종목코드=li_감시종목, li_데이터타입=['주문체결', '주식체결'])
+        res = await self.wsapi.req_실시간등록(li_종목코드=li_감시종목, li_데이터타입=['주문체결', '주식체결', '주식호가잔량'])
 
         # 로그 기록
         self.make_로그(f'총 {len(li_감시종목)}개\n'
@@ -143,6 +143,8 @@ class TraderBot:
                 s_데이터타입 = dic_데이터['name']
                 s_종목코드 = dic_데이터['item']
                 dic_데이터_변동 = dic_데이터['values']
+                if s_데이터타입 == '주식호가잔량':                 # 호가는 양이 많아 콘솔에 찍지 않는다
+                    continue
 
                 # 데이터 출력
                 print(f'{len(li_데이터)}개 수신 - {s_데이터타입} - {s_종목코드}|{dic_데이터_변동}')
@@ -175,6 +177,8 @@ class TraderBot:
                 s_데이터타입 = dic_데이터['name']
                 s_종목코드 = dic_데이터['item']
                 dic_데이터_변동 = dic_데이터['values']
+                if s_데이터타입 == '주식호가잔량':                 # 매매는 체결·주문만 본다 - 호가를 넘기면 매매 큐가 밀려 판정이 늦어진다
+                    continue
 
                 # 데이터 전달
                 self.queue_mp_수신2매매.put(dic_데이터)
