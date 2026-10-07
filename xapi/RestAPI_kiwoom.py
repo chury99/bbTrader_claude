@@ -52,15 +52,15 @@ class RestAPIkiwoom:
             dic_전체토큰 = json.load(open(path_접근토큰, mode='rt', encoding='utf-8')) if os.path.exists(path_접근토큰) else dict()
             dic_접근토큰 = dic_전체토큰.get(self.s_계좌번호, dict()) if os.path.exists(path_접근토큰) else dict()
 
-            # 토큰 미존재 시 토큰 발급
-            if len(dic_접근토큰) == 0:
+            # 토큰 미존재(또는 예전 발급 실패 문자열이 남아 있음) 시 토큰 발급
+            if len(dic_접근토큰) == 0 or isinstance(dic_접근토큰, str):
                 dic_접근토큰 = self.tr_접근토큰발급(dic_접속키)
+
+                # 정상수신 확인 - 발급 실패 시 에러 문자열이 반환됨 (저장하지 않는다 - 저장하면 키를 고쳐도 계속 실패로 읽힌다)
+                if isinstance(dic_접근토큰, str):
+                    raise RuntimeError(f'접근토큰 발급 실패 - {dic_접근토큰}')
                 dic_전체토큰[self.s_계좌번호] = dic_접근토큰
                 json.dump(dic_전체토큰, open(path_접근토큰, mode='wt', encoding='utf-8'), indent=4, ensure_ascii=False)
-
-            # 정상수신 확인 - 발급 실패 시 에러 문자열이 반환됨
-            if isinstance(dic_접근토큰, str):
-                raise RuntimeError(f'접근토큰 발급 실패 - {dic_접근토큰}')
 
             # 만료여부 확인
             dt_토큰만료 = pd.Timestamp(dic_접근토큰['expires_dt'])
@@ -526,7 +526,7 @@ if __name__ == '__main__':
         # df_종목별주가 = api.tr_업종별주가요청(s_시장='코스피')
         # df_실시간조회순위 = api.tr_실시간종목조회순위()
         # res = api.tr_주식주문(s_구분='매수', s_종목코드='319400', n_주문수량=1, n_주문단가=6590, s_매매구분='보통')
-        # api = RestAPIkiwoom(s_계좌번호='53977788')
+        # api = RestAPIkiwoom(s_계좌번호='계좌번호')
         # dic_전체손익, df_매매일지 = api.tr_당일매매일지요청()
         pass
     test()
