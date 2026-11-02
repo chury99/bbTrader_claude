@@ -8,7 +8,7 @@
     세 조건과 지표 (모두 신호 초 종료 시점까지의 정보만 사용)
       ① 체결 폭증   속도30 ≥ 속도기본30(5) (3초 연속 10건은 v34 에서 뺐다, 기본횟수=0 · 속도5 ≥ 10 은 v29 에서 뺐다, 속도기본=0) (v14~v16 의 1초봉 개수 조건은 뺐다, 기본횟수=0 이면 끔)
                     이면서 속도5 > 속도30 인 동안 전체
-                    속도5 / 속도30 = 초당 체결 건수의 5초 / 30초 이동평균
+                    속도5 / 속도30 = 체결횟수(초당)의 5초 / 30초 이동평균
                     (v7·v8 의 60초 이평 상향 돌파 순간 조건은 참고용)
                     ※ 이전: v1 10초 평균 → v2~v4 5초 평균 → v5 1초 → v6 5초 평균, 모두 절대 문턱
       ② 매수 쏠림   체결강도10 = 직전 10초 매수량 ÷ 매도량 × 100  (100 = 매수·매도 같음, 1·2주 단주 제외, 매도 0 이면 999)
@@ -181,6 +181,18 @@
       ※ v79 결과: 3% 가 IS·OOS 일관 개선 (칸 평균 IS −0.42→−0.37·OOS −0.44→−0.35, 나은 칸 38·40/40, 걸러지는 거래 −0.67/−0.68) · 2% 는 OOS 32/40,
          5% 는 OOS 큰 손실 10.5→19% · 흑자 칸 0
       v80 (2026-10-07) ⑭ 직전 5분 고저폭 3% 고정 (DIC_공통 분폭5=3, 축에서 뺌) → v70 진입 40 × 가격 이탈 3초 = 40칸 (결과 = v79 의 3% 칸)
+                       (2026-10-29) 거래 그래프에 호가 잔량비율 칸 - 매수호가 총잔량 ÷ 매도호가 총잔량 1초 값 + 5초 / 30초 이평 (로직·거래 그대로,
+                       호가 수집 10/12 부터라 그 전 거래는 '호가 자료 없음') · 캐시 _초캐시/호가_YYYYMMDD.npz
+      v81 (2026-10-30) ⑮ 호가 잔량비율 추세 (사용자 규칙) - 잔량비율(매수호가 총잔량 ÷ 매도호가 총잔량) 5초 이평 > 30초 이평일 때만 진입
+                       없음/있음 × v80 40 = 80 · 호가가 있는 날(10/12~)만 써서 그 날들을 같은 씨앗으로 다시 반반 분할 · 리포트 9절 짝 비교
+      ※ v81 결과: 칸 평균 IS −0.75→−0.82·OOS −0.65→−0.73, 나은 칸 IS 6·OOS 21·둘 다 2/40 - 급등 순간엔 매수 잔량이 먹혀 비율이 내려가는 쪽
+      v82 (2026-10-30) ⑮ 호가 잔량 조건 5종 (사용자 규칙) - 잔량비 R = 매수 ÷ 매도 총잔량, 역비 Q = 매도 ÷ 매수 총잔량
+                       1 R ≥ 2 · 2 R 5초 이평 ≥ 2 · 3 Q 5초 이평 > 30초 이평 · 4 Q ≥ 2 · 5 Q 5초 이평 ≥ 2 (0 = 조건 없음) × v80 40 = 240
+      ※ v82 결과: 칸 평균 IS/OOS 없음 −0.75/−0.65 · 1~5 −0.73~−0.86/−0.62~−0.71, 둘 다 나은 칸 2~7/40 → 전부 기각
+         (v80 거래 490건 수익 +1%↑ 22 vs 손실 −1%↓ 192 단별 비교: 매도 1~3단 잔량 20초 변화와 1단 잔량비 20초 이평만 날짜 네 묶음 모두 같은 방향)
+      v83 (2026-10-30) ⑮ 단별 호가 조건 (사용자 요청, 10/29 까지) - 7 매도 1~3단 잔량 합이 20초 전보다 줄었음 · 8 1단 잔량비(매수1 ÷ 매도1) 20초 이평 ≥ 3
+                       · 9 같은 이평 ≥ 10 · 10 = 7 그리고 8 (0 = 조건 없음) × v80 40 = 200 · 호가 캐시 6채널(총잔량·1단·1~3단 합)
+                       ※ 조건은 같은 14일의 사후 분석에서 골랐으므로 IS·OOS 모두 '본 데이터' - 독립 검증은 10/30 이후 날짜로 해야 한다
       ※ 사용자 목표: 평균 수익률보다 '얼토당토않은 거래가 안 나게' 진입·청산 기준을 잡는 것 - 거래별 그래프를 중점으로 본다
 
     사용
@@ -207,7 +219,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import ut
 
 # ===== 버전·검증 설정 =====
-S_버전 = 'v80'
+S_버전 = 'v83'
 N_분할씨앗 = 20260921                 # 일자 무작위 분할 씨앗 - 바꾸면 IS/OOS 가 바뀌므로 버전과 함께 기록
 LI_제외일 = ['20260817', '20260924', '20260925']   # 임시공휴일 · 추석 연휴 (틱 없음)
 S_리포트폴더 = '클로드분석결과'        # 서버 웹폴더(server_kakao) 하위
@@ -221,7 +233,22 @@ N_단주 = 2
 
 # ===== 격자 (v27) =====
 DIC_진입축 = dict(추세=['5회'], 변동초비율=[0, 60], 체결강도10=[100, 200, 300, 400, 600], 상한5=[0, 1], 상한10=[0, 1.5],
-                 최소보유=[10])
+                 잔량=[0, 7, 8, 9, 10], 최소보유=[10])
+# v81 ⑮ 호가 잔량비율 추세 (잔량): 1 = 잔량비율(매수호가 총잔량 ÷ 매도호가 총잔량, 시계 초) 5초 이평 > 30초 이평일 때만 (0 = 조건 없음)
+#   v82: 잔량 축 번호 = DIC_잔량조건 (v81 의 R 5초 > 30초 는 기각돼 뺐다 - 다시 보려면 6 번으로 넣는다)
+DIC_잔량조건 = {0: '조건 없음', 1: '잔량비 ≥ 2', 2: '잔량비 5초 이평 ≥ 2', 3: '역비 5초 > 30초 이평', 4: '역비 ≥ 2', 5: '역비 5초 이평 ≥ 2',
+               6: '잔량비 5초 > 30초 이평', 7: '매도 1~3단 잔량 20초 전보다 줄어듦', 8: '1단 잔량비 20초 이평 ≥ 3', 9: '1단 잔량비 20초 이평 ≥ 10',
+               10: '매도 1~3단 줄어듦 + 1단 20초 이평 ≥ 3'}
+S_까지 = None                          # v83: 이 날짜(YYYYMMDD)까지만 쓴다 (--until, None = 전부)
+# 5단계 봉인 (2026-10-30): S_봉인시작 부터의 날짜는 격자·분석에 쓰지 않고, S_개봉일 이 지나면 --forward 로 지금 격자를 그대로 한 번만 돌린다
+#   사전 판정 기준 (v83): ⑮ 9번 칸이 같은 나머지 축 0번 칸보다 나은 칸 ≥ 30/40 이고 칸 평균 차 ≥ +0.1%p 면 채택 후보,
+#   선정 규칙(추세5회|변동0|강도200|상한5_0|상한10_1.5|잔량9) 의 실측 비용 순수익 ≥ 0 이면 실매매 검토 · 개봉 뒤 이 날짜들로 재튜닝 금지
+S_봉인시작, S_개봉일 = '20261030', '20261113'
+B_전진 = False                         # True = 봉인 날짜만 쓴다 (전진검증 안에서만)
+S_전진선정 = '추세5회|변동0|강도200|상한5_0|상한10_1.5|잔량9|최소보유10|가격이탈3초'
+# 실측 비용 (2026-10-30, 5단계 1-나): 수수료·세금 0.3% 고정 + 실매매 400건 판정 완결 초 종가 → 체결 매수 0.14% · 매도 0.05% (백테 가정 0.35 + 0.23 + 0.08 = 0.66)
+N_실측비용, N_실측매수, N_실측매도 = 0.30, 0.14, 0.05
+#   호가 수집이 10/12 부터라 이 축이 있으면 run() 이 호가 csv 가 있는 날만 쓰고 그 날들을 다시 반반 나눈다 - id 에 '잔량N|' 이 붙고 리포트 9절이 짝 비교를 그린다
 # v79 ⑭ 직전 5분 고저폭 (분폭5): 진입 초가 속한 분 앞의 완결 분봉 5개 최고가 ÷ 최저가 − 1 ≥ N% 일 때만 (0 = 조건 없음)
 #   분봉 1년 연구 (10/7): 1분 +4% 급등 직전 5분 고저폭 중앙 5.7% vs 평소 0.3% (구분력 0.94) · v70 거래 중 3% 미만에서 들어간 것이 IS −0.66·OOS −0.68
 #   (3% 이상 −0.33/−0.33) → 둥근 문턱 0 / 2 / 3 / 5% 격자. 1초 캐시의 초 고가·저가로 분봉을 만든다 (틱이 있는 종목은 전 체결)
@@ -319,6 +346,7 @@ DIC_공통 = dict(시작=60, 종료=S_마감 - 300, 가격min=1000, 저가조건
 # 기본창·기본횟수·봉최소: 직전 기본창 개 1초봉 중 기본횟수 개 이상이 체결 봉최소 건 이상 (v16 = 5개 모두 5건 이상, v17·v34~ 은 기본횟수 0 = 끔, v20~v33 = 3개 연속 10건) / 속도기본: 5초 이평 최소 / 저가상승: 조건 ③ 10초 전~1초 전 최저가 대비 (%) 하한 (v46 0, v8~v44 0.5, v45 는 0.5 상한)
 # 선정 기준 (결과를 보기 전에 고정): IS 거래 30건 이상 · 거래 발생 8일 이상 중 거래당 t값 최대
 N_선정최소건수, N_선정최소일수 = 30, 8
+N_병렬 = 6                            # 격자·분석 병렬 프로세스 수 (장중에는 --proc 로 줄여 틱 수집을 해치지 않게)
 
 
 # =====================================================================
@@ -413,6 +441,74 @@ def 적재_전량(s_일자):
     return z['arr'], z['codes']
 
 
+def build_호가(s_일자):
+    """ 호가잔량 CSV → 종목×초×6 (채널 0·1 매도·매수호가 총잔량 · 2·3 매도·매수 1호가 수량 · 4·5 매도·매수 1~3호가 수량 합, 그 초 마지막 값을 다음 갱신까지 이어 씀)
+        v80 그래프 호가 칸 · v81~v83 진입 ⑮ (v83 전 2채널 캐시는 다시 만든다)
+        종목 순서는 같은 날 12채널 캐시(초2_)와 같다 · 호가 csv 가 없는 날(10/12 수집 시작 전)은 만들지 않는다 → None """
+    folder_캐시 = os.path.join(folder_관성(), '_초캐시')
+    path_out = os.path.join(folder_캐시, f'호가_{s_일자}.npz')
+    if os.path.exists(path_out) and np.load(path_out)['arr'].shape[2] >= 6:
+        return s_일자, '있음'
+    folder = ut.폴더manager.FolderManager().dic_폴더정보['매수매도|주식호가']
+    li = [p_ for p_ in (os.path.join(folder, f'주식호가_{s_일자}.csv'), os.path.join(folder, f'주식호가추가_{s_일자}.csv')) if os.path.exists(p_)]
+    if not li:
+        return s_일자, None
+    codes = np.load(os.path.join(folder_캐시, f'초2_{s_일자}.npz'))['codes']
+    cols = ['종목코드', '호가시간', '매도호가총잔량', '매수호가총잔량'] + [f'{k}호가수량{i}' for k in ('매도', '매수') for i in (1, 2, 3)]
+    df = pd.concat([pd.read_csv(p_, encoding='cp949', usecols=cols, dtype={'종목코드': str, '호가시간': str}, on_bad_lines='skip') for p_ in li], ignore_index=True)
+    for k in ('매도', '매수'):
+        df[f'{k}1'] = df[f'{k}호가수량1']; df[f'{k}3'] = df[[f'{k}호가수량{i}' for i in (1, 2, 3)]].sum(axis=1)
+    t = df['호가시간'].str
+    df['s'] = (pd.to_numeric(t[:2], errors='coerce') * 3600 + pd.to_numeric(t[2:4], errors='coerce') * 60
+               + pd.to_numeric(t[4:6], errors='coerce')) - T0
+    df = df.dropna(subset=['s'])
+    df['s'] = df['s'].astype(int).clip(lower=0)               # 장 시작 전 동시호가 잔량은 09:00:00 첫 값으로
+    df = df[df['s'] < N_초]; df['종목코드'] = df['종목코드'].str.strip()
+    idx = {cd: k for k, cd in enumerate(codes)}
+    arr = np.full((len(codes), N_초, 6), np.nan, dtype=np.float32)
+    g = df[df['종목코드'].isin(idx)].groupby(['종목코드', 's'])[['매도호가총잔량', '매수호가총잔량', '매도1', '매수1', '매도3', '매수3']].last()
+    arr[[idx[c_] for c_ in g.index.get_level_values(0)], g.index.get_level_values(1).to_numpy()] = g.values.astype(np.float32)
+    for k in range(len(codes)):
+        arr[k] = pd.DataFrame(arr[k]).ffill().values
+    np.savez(path_out, arr=arr, codes=np.array(codes))
+    return s_일자, len(codes)
+
+
+def 적재_호가(s_일자):
+    """ 호가 총잔량 캐시 (없으면 만든다) → (종목×초×2 배열, 종목코드) · 호가 csv 가 없는 날은 (None, None) """
+    if build_호가(s_일자)[1] is None:
+        return None, None
+    z = np.load(os.path.join(folder_관성(), '_초캐시', f'호가_{s_일자}.npz'))
+    return z['arr'], z['codes']
+
+
+def 잔량비지표(d, a호):
+    """ v80: 잔량비율 = 매수호가 총잔량 ÷ 매도호가 총잔량 (1 = 균형, 1 보다 크면 사려는 물량이 더 쌓임) + 5초 / 30초 이평 (시계 초 기준) """
+    매도, 매수 = a호[:, 0].astype(np.float64), a호[:, 1].astype(np.float64)
+    비 = np.where((매도 > 0) & (매수 > 0), 매수 / np.where(매도 > 0, 매도, 1), np.nan)
+    d['잔량비'] = 비
+    s_ = pd.Series(비)
+    d['잔량비5'], d['잔량비30'] = s_.rolling(5, min_periods=5).mean().values, s_.rolling(30, min_periods=30).mean().values
+    역 = pd.Series(np.where(np.isfinite(비), 1 / np.where(np.isfinite(비), 비, 1), np.nan))     # v82: 역비 = 매도호가 총잔량 ÷ 매수호가 총잔량
+    d['역비'], d['역비5'], d['역비30'] = 역.values, 역.rolling(5, min_periods=5).mean().values, 역.rolling(30, min_periods=30).mean().values
+    if a호.shape[1] >= 6:                                         # v83: 1단 잔량비 20초 이평 · 매도 1~3단 잔량 합의 20초 전 대비 변화 (시계 초)
+        s1, b1 = a호[:, 2].astype(np.float64), a호[:, 3].astype(np.float64)
+        d['1단비'] = np.where((s1 > 0) & (b1 > 0), b1 / np.where(s1 > 0, s1, 1), np.nan)
+        d['1단비20'] = pd.Series(d['1단비']).rolling(20, min_periods=20).mean().values
+        s3 = a호[:, 4].astype(np.float64)
+        d['매도3변화20'] = np.where(_lag(s3, 20) > 0, s3 / np.where(_lag(s3, 20) > 0, _lag(s3, 20), 1) - 1, np.nan)
+
+
+def 잔량조건(d, k):
+    """ v82 ⑮ 호가 잔량 조건 k (DIC_잔량조건) → 초별 참/거짓 (호가가 없는 날·이평이 아직 없는 초는 거짓) """
+    if '잔량비' not in d:
+        return np.zeros(len(d['p']), bool)
+    return {1: lambda: d['잔량비'] >= 2, 2: lambda: d['잔량비5'] >= 2, 3: lambda: d['역비5'] > d['역비30'], 4: lambda: d['역비'] >= 2,
+            5: lambda: d['역비5'] >= 2, 6: lambda: d['잔량비5'] > d['잔량비30'],
+            7: lambda: d['매도3변화20'] < 0, 8: lambda: d['1단비20'] >= 3, 9: lambda: d['1단비20'] >= 10,
+            10: lambda: (d['매도3변화20'] < 0) & (d['1단비20'] >= 3)}[k]()
+
+
 def 캐시보충(n_proc=3):
     """ 틱은 있는데 1초 캐시가 없는 일자를 찾아 만든다 (v69 - 캐시가 9/21 에 멈춰 나흘이 빠졌던 것을 막는다)
         장이 끝나지 않은 오늘(15:40 전) · 틱이 비어 있는 날(1MB 미만, 휴장) · LI_제외일 은 건너뛴다. 장중 틱 수집을 해치지 않게 프로세스 수는 적게 둔다 """
@@ -446,7 +542,10 @@ def 캐시보충(n_proc=3):
 def li_캐시일자():
     folder_캐시 = os.path.join(folder_관성(), '_초캐시')
     li = sorted(f[3:11] for f in os.listdir(folder_캐시) if f.startswith('초2_') and f.endswith('.npz'))
-    return [s for s in li if s not in LI_제외일]
+    li = [s for s in li if s not in LI_제외일 and (S_까지 is None or s <= S_까지) and ((s >= S_봉인시작) == B_전진)]   # 5단계: 봉인 날짜는 전진검증에서만
+    if '잔량' in DIC_진입축:                       # v81 ⑮ 은 호가가 있어야 판정하므로 호가 csv 가 있는 날만 (호가 캐시도 여기서 차례로 만든다 - 병렬 중복 생성 방지)
+        li = [s for s in li if build_호가(s)[1] is not None]
+    return li
 
 
 def 분할(li_일자):
@@ -513,7 +612,9 @@ def 적재(s_일자):
     ch13 = np.array([급등.get(cd, np.nan) for cd in codes], dtype=np.float32)[:, None, None] * np.ones((1, arr.shape[1], 1), np.float32)
     경과 = ut.분봉급등.급등경과일(s_일자, 5)                      # v77: 채널 14 = 가장 최근 유동 1분 +4% 급등이 며칠 전 (1 = 직전 거래일, 5일 안에 없으면 99)
     ch14 = np.array([경과.get(cd, 99) for cd in codes], dtype=np.float32)[:, None, None] * np.ones((1, arr.shape[1], 1), np.float32)
-    return np.concatenate([arr, 적재_전량(s_일자)[0][:, :, None], ch13, ch14], axis=2), codes
+    a호, _ = 적재_호가(s_일자)                                 # v81: 채널 15·16 = 매도·매수호가 총잔량 (호가 csv 가 없는 날은 nan)
+    a호 = a호 if a호 is not None else np.full((len(codes), arr.shape[1], 6), np.nan, np.float32)   # v83: 채널 15~20 (총잔량·1단·1~3단 합)
+    return np.concatenate([arr, 적재_전량(s_일자)[0][:, :, None], ch13, ch14, a호], axis=2), codes
 
 
 # =====================================================================
@@ -542,6 +643,8 @@ def 지표(a):
     d['대금1'] = d['체결량전체'] * p / 1e6               # v70: 초당 거래대금 백만원 (체결량 × 1초 종가 - 캐시의 누적거래대금은 백만원 단위라 초 차분이 거칠다)
     d['전일1분최대'] =a[:, 13].astype(np.float64) if a.shape[1] > 13 else np.full(len(p), np.nan)   # v59: 직전 거래일 1분 최대 상승률 %
     d['급등경과일'] = a[:, 14].astype(np.float64) if a.shape[1] > 14 else np.full(len(p), 99.0)   # v77: 가장 최근 유동 1분 +4% 급등이 며칠 전 (없으면 99)
+    if a.shape[1] > 16 and np.isfinite(a[:, 15]).any():
+        잔량비지표(d, a[:, 15:])                       # v81: 호가 잔량비율 + 5초 / 30초 이평 (호가 없는 날은 키가 없다 → ⑮ 진입 없음)
     d['속도1'] = na                                    # v5 조건 (참고용)
     d['속도5'] = _rsum(na, 5) / 5                      # v2~v6 조건 (참고용)
     d['속도3'] = _rsum(na, 3) / 3
@@ -751,6 +854,8 @@ def 마스크(d, c):
         m &= d['급등경과일'] <= c['이력일']
     if c.get('분폭5'):                                    # v79 ⑭ 직전 5분 고저폭 ≥ N% (장 시작 첫 분은 값이 없어 진입 안 함)
         m &= np.nan_to_num(d['분폭5'], nan=-1) >= c['분폭5']
+    if c.get('잔량'):                                     # v81·v82 ⑮ 호가 잔량 조건 (호가가 없거나 이평이 아직 없으면 진입 안 함)
+        m &= 잔량조건(d, c['잔량'])
     m &= (d['량5위30'] == 1) if c.get('폭증기준') == '체결량' else (d['가격5위30'] == 1) if c.get('폭증기준') == '가격' else (d['5초위30초'] == 1)   # v66: 가격 5초 이평 > 30초 이평 / v55: 체결량 5초 이평 ≥ 30초 이평 (v54 까지 체결 건수 5초 > 30초)
     m &= d['체결강도10'] >= c['체결강도10']
     if c.get('저가조건', 1):                             # v63: 0 = ③ 10초 저가 조건 없음
@@ -906,7 +1011,7 @@ def 격자():
             c = dict(DIC_공통); c.update(dict(zip(ks, vals))); c.update(e)
             if c.get('즉시청산방지') == '최소보유10':                      # v61: 진입 후 10초 안에는 하향돌파 청산 안 함
                 c['최소보유'] = 10
-            c['id'] = f"아래{c['아래지속']}|속도30_{c['속도기본30']}|{e['이름']}" if c.get('진입방식') == '교차' else f"추세{c['추세']}|변동{c['변동초비율']}|강도{c['체결강도10']}|상한5_{c['상한5']:g}|상한10_{c['상한10']:g}|" + (f"분폭{c['분폭5']:g}|" if '분폭5' in DIC_진입축 else '') + f"최소보유{c['최소보유']}|{e['이름']}"
+            c['id'] = f"아래{c['아래지속']}|속도30_{c['속도기본30']}|{e['이름']}" if c.get('진입방식') == '교차' else f"추세{c['추세']}|변동{c['변동초비율']}|강도{c['체결강도10']}|상한5_{c['상한5']:g}|상한10_{c['상한10']:g}|" + (f"분폭{c['분폭5']:g}|" if '분폭5' in DIC_진입축 else '') + (f"잔량{c['잔량']}|" if '잔량' in DIC_진입축 else '') + f"최소보유{c['최소보유']}|{e['이름']}"
             li.append(c)
     for vals in (itertools.product(*DIC_교차축.values()) if B_교차비교 else []):       # v73·v74 교차 진입 (롤백 후 꺼 둠)
         for e in LI_청산:
@@ -936,8 +1041,8 @@ def _일자실행(args):
     return out
 
 
-def 실험(li_cfg, li_일자, n_proc=6):
-    with Pool(n_proc) as pool:
+def 실험(li_cfg, li_일자):
+    with Pool(N_병렬) as pool:
         res = pool.map(_일자실행, [(s, li_cfg) for s in li_일자])
     return pd.DataFrame([r for x in res for r in x], columns=['id', '일자', '코드', '진입초', '청산초', '매수가', '청산가', '수익', '사유'])
 
@@ -971,7 +1076,7 @@ def _경로일자(args):
 
 def 평균경로(df_거래):
     li = [(s, None, list(zip(g['코드'], g['진입초']))) for s, g in df_거래.groupby('일자')]
-    with Pool(6) as pool:
+    with Pool(N_병렬) as pool:
         res = pool.map(_경로일자, li)
     x = np.array([r for y in res for r in y])
     return x
@@ -983,7 +1088,7 @@ def 평균경로(df_거래):
 DIC_특징설명 = {'순번': '그 종목 당일 몇 번째 진입인가', '시각': '장 시작 후 분', '가격': '신호가(원)',
              '진입슬립': '매수가 ÷ 신호가 − 1 (%)', '상승60': '직전 60초 상승률 %', '상승300': '직전 5분 상승률 %',
              '일등락': '전일 종가 대비 %', '고가거리': '당일 직전 고가 대비 %', '대금10': '직전 10초 거래대금(백만원)',
-             '속도5': '초당 체결(5초 평균)', '체결강도10': '10초 체결강도(100=균형)'}
+             '속도5': '체결횟수(5초 평균)', '체결강도10': '10초 체결강도(100=균형)'}
 
 
 def _특징일자(args):
@@ -1008,7 +1113,7 @@ def 특징표(df):
     df = df.sort_values(['일자', '코드', '진입초']).reset_index(drop=True)
     df['순번'] = df.groupby(['일자', '코드']).cumcount() + 1
     li = [(s, list(zip(g['코드'], g['진입초'].astype(int), g['매수가']))) for s, g in df.groupby('일자', sort=True)]
-    with Pool(6) as pool:
+    with Pool(N_병렬) as pool:
         res = pool.map(_특징일자, li)
     f = pd.concat([df, pd.DataFrame([r for x in res for r in x])], axis=1)
     rows = []
@@ -1073,7 +1178,7 @@ def 그룹특징(df):
     df['시장'] = df['코드'].map(시장구분)
     df['초'] = df['진입초']
     li = [(s, list(zip(g['코드'], g['진입초'].astype(int)))) for s, g in df.groupby('일자', sort=True)]
-    with Pool(6) as pool:
+    with Pool(N_병렬) as pool:
         res = pool.map(_그룹일자, li)
     return pd.concat([df, pd.DataFrame([r for x in res for r in x])], axis=1)
 
@@ -1096,7 +1201,7 @@ LI_그룹 = [
     ('직전 10초 거래대금', '백만원', '대금10', 'q5', None, None),
     ('직전 5분 상승률', '%', '상승300', 'q5', None, None),
     ('체결강도', '진입 순간 10초 체결강도', '체결강도', 'q5', None, None),
-    ('초당 체결', '진입 순간 5초 평균 (건)', '속도5', 'q5', None, None),
+    ('체결횟수', '진입 순간 5초 평균 (건)', '속도5', 'q5', None, None),
     ('평소 가격변동', '진입 5분 전~1분 전 가격이 변한 초 비율 %', '변동초', 'q5', None, None),
     ('감시종목 평균 등락', '진입 순간 감시종목 전체의 전일 대비 평균 %', '시장등락', 'q5', None, None),
     ('감시종목 상승 비율', '진입 순간 감시종목 중 전일보다 오른 종목 %', '시장상승', 'q5', None, None),
@@ -1264,6 +1369,7 @@ def _조건목록(c):
         + ([(f"⑩ 전일 1분 급등 {c['전일급등']}", lambda d: (d['전일1분최대'] >= c.get("급등기준", N_전일급등)) if c['전일급등'] == '있음' else (d['전일1분최대'] < c.get("급등기준", N_전일급등)))] if c.get('전일급등', '무관') != '무관' else []) \
         + ([(f"⑬ 최근 {c['이력일']}일 1분 +4%", lambda d: d['급등경과일'] <= c['이력일'])] if c.get('이력일') else []) \
         + ([(f"⑭ 직전 5분 고저폭 ≥ {c['분폭5']:g}%", lambda d: np.nan_to_num(d['분폭5'], nan=-1) >= c['분폭5'])] if c.get('분폭5') else []) \
+        + ([(f"⑮ {DIC_잔량조건[c['잔량']]}", lambda d: 잔량조건(d, c['잔량']))] if c.get('잔량') else []) \
         + ([(f"⑧ 전일 대비 < +{N_등락상한}%", lambda d: ~(d['일등락'] >= N_등락상한))] if c.get('제외등락') else []) \
         + ([(f"⑧ 봉 폭 < {N_봉폭상한}%", lambda d: ~(d['봉폭'] >= N_봉폭상한))] if c.get('제외봉폭') else []) \
         + ([(f"⑧ 10초 대금 > {N_대금하한}백만", lambda d: ~(np.nan_to_num(d['대금10']) <= N_대금하한))] if c.get('제외대금') else [])
@@ -1291,7 +1397,7 @@ def _지연일자(args):
 
 def 지연진단(df, c):
     li = [(s, c, list(zip(g['코드'], g['진입초'].astype(int)))) for s, g in df.groupby('일자', sort=True)]
-    with Pool(6) as pool:
+    with Pool(N_병렬) as pool:
         res = pool.map(_지연일자, li)
     x = pd.DataFrame([r for y in res for r in y])
     ks = [nm for nm, _ in _조건목록(c)]
@@ -1327,12 +1433,12 @@ def _대금일자(args):
 def 대금비교(df):
     """ 거래마다 진입 전·후 거래대금 특징 → df 에 붙여 돌려준다 """
     li = [(s, list(zip(g.index, g['코드'], g['진입초'].astype(int)))) for s, g in df.groupby('일자', sort=True)]
-    with Pool(6) as pool:
+    with Pool(N_병렬) as pool:
         res = pool.map(_대금일자, li)
     return df.join(pd.DataFrame([r for y in res for r in y]).set_index('키'))
 
 
-DIC_필터축 = {'이력': ('이력', '일'), '분폭': ('분폭', '')}     # v77 ⑬ 이력 N일 · v79 ⑭ 직전 5분 고저폭 N% - id 조각 '|이력N일|' · '|분폭N|'
+DIC_필터축 = {'이력': ('이력', '일'), '분폭': ('분폭', ''), '잔량': ('잔량', '')}     # v77 ⑬ 이력 N일 · v79 ⑭ 직전 5분 고저폭 N% - id 조각 '|이력N일|' · '|분폭N|'
 
 
 def 필터요약(s_IS, s_OOS, s_축='이력'):
@@ -1377,7 +1483,7 @@ def 필터대상수(li_일자):
 
 
 def 필터이름(N, s_축='이력'):
-    return '조건 없음' if N == 0 else f'최근 {N}일' if s_축 == '이력' else f'고저폭 ≥ {N}%'
+    return '조건 없음' if N == 0 else f'최근 {N}일' if s_축 == '이력' else DIC_잔량조건[N] if s_축 == '잔량' else f'고저폭 ≥ {N}%'
 
 
 def 필터그림(f, s_축='이력'):
@@ -1470,9 +1576,10 @@ def 거래그래프(d, r, c, s_제목):
     a, b = max(0, t - 120), min(len(d['p']) - 1, s + 120)
     x = np.arange(a, b + 1) - t
     b_저가 = c.get('저가조건', 1)                  # v63: ③ 10초 저가 조건을 안 쓰면 그 칸을 뺀다 (ax[5] = None)
-    fig, ax_ = plt.subplots(9 if b_저가 else 8, 1, figsize=(9, 13.2 if b_저가 else 12.2), sharex=True,
-                            gridspec_kw=dict(height_ratios=[2.2, 1, 1, 1, 1] + ([1] if b_저가 else []) + [1, 1, 1.5]))
-    ax = list(ax_) if b_저가 else list(ax_[:5]) + [None] + list(ax_[5:])   # v70: ax[3] = 거래대금 (체결량 다음)
+    fig, ax_ = plt.subplots(10 if b_저가 else 9, 1, figsize=(9, 14.2 if b_저가 else 13.2), sharex=True,
+                            gridspec_kw=dict(height_ratios=[2.2, 1, 1, 1, 1, 1] + ([1] if b_저가 else []) + [1, 1, 1.5]))
+    q_ = list(ax_); ax_호가 = q_.pop(5)            # v80: 호가 잔량비율 칸은 ② 체결강도 바로 아래에 그리고 ax[9] 로 둔다
+    ax = (q_ if b_저가 else q_[:5] + [None] + q_[5:]) + [ax_호가]   # v70: ax[3] = 거래대금 (체결량 다음)
     ax_있음 = [q for q in ax if q is not None]
     # 가격
     p = d['p'][a:b + 1]
@@ -1495,7 +1602,7 @@ def 거래그래프(d, r, c, s_제목):
     ax[1].axhline(c['속도기본30'], color=PUR, ls='--', lw=.9, label=f"30초 문턱 {c['속도기본30']}")
     ax[1].set_ylim(bottom=0)
     ax[1].legend(fontsize=6.5, loc='upper left', ncol=3, framealpha=.55, handlelength=1.2, columnspacing=.8, borderpad=.3)
-    ax[1].set_ylabel('① 초당 체결\n(단주 제외)', fontsize=8)
+    ax[1].set_ylabel('① 체결횟수\n(단주 제외)', fontsize=8)
     # 체결량 - 초당 체결량 막대(1·2주 단주 포함 전체, d['체결량전체'] 가 없으면 단주 제외) + 5초 / 30초 이평 (거래 시간 축, v54)
     from matplotlib.ticker import FuncFormatter
     vol, 량5, 량30 = d['체결량전체'], d['체결량5'], d['체결량30']
@@ -1527,6 +1634,23 @@ def 거래그래프(d, r, c, s_제목):
     ax[4].set_yscale('log'); ax[4].set_yticks([10, 100, 1000]); ax[4].set_yticklabels(['10', '100', '1000'])
     ax[4].legend(fontsize=7, loc='lower left', ncol=2)
     ax[4].set_ylim(8, 1300); ax[4].set_ylabel('② 체결강도', fontsize=8)
+    # 호가 잔량비율 - 매수호가 총잔량 ÷ 매도호가 총잔량 (1초 값 + 5초 / 30초 이평, v80 · 호가 수집은 10/12 부터)
+    if '잔량비' in d and np.isfinite(d['잔량비'][a:b + 1]).any():
+        비_ = d['잔량비'][a:b + 1]
+        ax[9].plot(x, 비_, color=GRAY, lw=.8, alpha=.8, label='잔량비율 (매수 ÷ 매도 총잔량)')
+        ax[9].plot(x, d['잔량비5'][a:b + 1], color=YEL, lw=1.2, label='5초 이평')
+        ax[9].plot(x, d['잔량비30'][a:b + 1], color=PUR, lw=1.2, label='30초 이평')
+        ax[9].axhline(1, color=GRAY, lw=.6)
+        lo_, hi_ = np.nanpercentile(비_, 1), np.nanpercentile(비_, 99)
+        ax[9].set_yscale('log'); ax[9].set_ylim(min(lo_, .8) / 1.2, max(hi_, 1.25) * 1.2)   # 1 을 가운데 두고 위아래가 같은 비율로 보이게
+        from matplotlib.ticker import FixedLocator, NullLocator
+        ax[9].yaxis.set_major_locator(FixedLocator([v for v in (.1, .2, .5, 1, 2, 5, 10, 20) if ax[9].get_ylim()[0] <= v <= ax[9].get_ylim()[1]]))
+        ax[9].yaxis.set_minor_locator(NullLocator()); ax[9].yaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}'))
+        ax[9].legend(fontsize=6.5, loc='upper left', ncol=3, framealpha=.55, handlelength=1.2, columnspacing=.8, borderpad=.3)
+    else:
+        ax[9].text(.5, .5, '호가 자료 없음 (호가 수집은 10/12 부터)', transform=ax[9].transAxes, ha='center', va='center', color=GRAY, fontsize=8)
+        ax[9].set_yticks([])
+    ax[9].set_ylabel('호가\n잔량비율', fontsize=8); ax[9].tick_params(axis='y', labelsize=7)
     # ③ 10초 저가 대비 (v63 부터 조건을 안 쓰면 칸 없음)
     if b_저가:
         l2 = ax[5].plot(x, d['저가10대비'][a:b + 1], color=PUR, lw=1.1, label='10초 저가 대비%')
@@ -1577,6 +1701,7 @@ def 거래그래프(d, r, c, s_제목):
         + ([(f"⑩ 전일 1분 +{c.get("급등기준", N_전일급등):g}% 이력 {c['전일급등']}", (d['전일1분최대'] >= c.get("급등기준", N_전일급등)) if c['전일급등'] == '있음' else (d['전일1분최대'] < c.get("급등기준", N_전일급등)))] if c.get('전일급등', '무관') != '무관' else []) \
         + ([(f"⑬ 분봉 필터: 최근 {c['이력일']}일 1분 +4% 급등", d['급등경과일'] <= c['이력일'])] if c.get('이력일') else []) \
         + ([(f"⑭ 직전 5분(완결 분봉) 고저폭 ≥ {c['분폭5']:g}%", np.nan_to_num(d['분폭5'], nan=-1) >= c['분폭5'])] if c.get('분폭5') else []) \
+        + ([(f"⑮ 호가 {DIC_잔량조건[c['잔량']]}", 잔량조건(d, c['잔량']))] if c.get('잔량') else []) \
         + ([(f"⑧ 전일 대비 < +{N_등락상한}%", ~(d['일등락'] >= N_등락상한))] if c.get('제외등락') else []) \
         + ([(f"⑧ 진입 초 봉 폭 < {N_봉폭상한}%", ~(d['봉폭'] >= N_봉폭상한))] if c.get('제외봉폭') else []) \
         + ([(f"⑧ 10초 거래대금 > {N_대금하한}백만", ~(np.nan_to_num(d['대금10']) <= N_대금하한))] if c.get('제외대금') else []) \
@@ -1627,11 +1752,58 @@ def 거래그래프(d, r, c, s_제목):
 # =====================================================================
 # 실행
 # =====================================================================
+def 실측순수익(df):
+    """ 거래 원장 → 실측 비용 순수익 % (진입 초 종가 × (1 + 0.14%) 매수 · 청산 초 종가 × (1 − 0.05%) 매도 · 0.3% 고정) - 익절 지정가는 그 값 그대로 """
+    def p_of(E):                                               # 매수가 = max(종가 × 1.002, 종가 + 2호가) 에서 종가 복원
+        p1 = E / (1 + 매수슬립 / 100)
+        if p1 * (1 + 매수슬립 / 100) >= p1 + 2 * 호가단위(p1) - 1e-9:
+            return p1
+        return next((E - 2 * u for u in (1, 5, 10, 50, 100, 500, 1000) if 호가단위(E - 2 * u) == u), p1)
+    p = df['매수가'].map(p_of)
+    X = np.where(df['사유'] == '익절', df['청산가'], df['청산가'] / (1 - 매도슬립 / 100) * (1 - N_실측매도 / 100))
+    return (X / (p * (1 + N_실측매수 / 100)) - 1) * 100 - N_실측비용
+
+
+def 시도기록(s_종류, li_일자, n_칸, s_선정='', x_평균=np.nan):
+    """ 5단계: 돌린 격자를 {work}/분석/백테스팅/관성매매/시도기록.csv 에 한 줄씩 쌓는다 (같은 날짜를 몇 번 봤는지 세기 위해) """
+    path = os.path.join(folder_관성(), '시도기록.csv')
+    r = pd.DataFrame([dict(일시=pd.Timestamp.now().strftime('%Y-%m-%d %H:%M'), 종류=s_종류, 버전=S_버전, 칸=n_칸, 일수=len(li_일자),
+                           시작=min(li_일자) if li_일자 else '', 끝=max(li_일자) if li_일자 else '', 선정=s_선정, 칸평균=round(x_평균, 3))])
+    r.to_csv(path, mode='a', header=not os.path.exists(path), index=False, encoding='utf-8-sig')
+
+
+def 전진검증():
+    """ 5단계: 봉인 날짜(S_봉인시작 ~)에 지금 격자를 그대로 한 번 돌린다 - 개봉일 전에는 거부. 학습·검증 분할 없이 전부 새 날짜 """
+    global B_전진
+    if pd.Timestamp.now().strftime('%Y%m%d') < S_개봉일:
+        print(f'봉인 중 - 개봉일 {S_개봉일} 전에는 열지 않는다'); return None
+    B_전진 = True
+    캐시보충()
+    li = li_캐시일자()
+    li_cfg = 격자(); df = 실험(li_cfg, li); df['실측'] = 실측순수익(df)
+    df.to_pickle(os.path.join(folder_관성(), f'{S_버전}_거래_전진.pkl'))
+    s = 요약(df); s['실측'] = df.groupby('id')['실측'].mean()
+    print(f'전진검증 {len(li)}일 ({li[0]}~{li[-1]}) · 칸 {len(li_cfg)}')
+    if '잔량' in DIC_진입축:
+        s['N'] = s.index.str.extract(r'\|잔량(\d+)\|')[0].astype(int).values; s['기본'] = s.index.str.replace(r'\|잔량\d+', '', regex=True)
+        b = s[s.N == 0].set_index('기본')
+        for N, g in s.groupby('N'):
+            g = g.set_index('기본'); d_ = g.거래당 - b.거래당.reindex(g.index)
+            print(f'  ⑮ {N} {DIC_잔량조건[N]}: 칸 평균 거래당 {g.거래당.mean():+.3f} · 실측 {g.실측.mean():+.3f} · 건수 {g.건수.mean():.0f}'
+                  + (f' · 0번보다 나은 칸 {(d_ > 0).sum()}/{len(d_)} · 평균 차 {d_.mean():+.3f}' if N else ''))
+    if S_전진선정 in s.index:
+        r = s.loc[S_전진선정]; print(f'  선정 {S_전진선정}: {int(r.건수)}건 거래당 {r.거래당:+.3f} · 실측 비용 {r.실측:+.3f} · 승률 {r.승률:.0f}%')
+    시도기록('전진검증', li, len(li_cfg), S_전진선정, s.거래당.mean())
+    return s
+
+
 def run(b_텔레그램=True):
     warnings.simplefilter('ignore')
     캐시보충()                                  # v69: 새 틱 일자는 캐시를 먼저 만든다 (분할 전에)
     li_일자 = li_캐시일자()
     li_IS, li_OOS = 분할(li_일자)
+    global N_선정최소일수
+    N_선정최소일수 = min(N_선정최소일수, (len(li_IS) + 1) // 2)   # v81: 호가 날만 쓰면 IS 가 7일 → 선정 최소 일수는 IS 일수의 절반 (8일 상한)
     li_cfg = 격자()
     folder = folder_관성(); os.makedirs(folder, exist_ok=True)
 
@@ -1658,6 +1830,7 @@ def run(b_텔레그램=True):
     그룹[0].to_pickle(os.path.join(folder, f'{S_버전}_그룹_IS.pkl')); 그룹[1].to_pickle(os.path.join(folder, f'{S_버전}_그룹_OOS.pkl'))
 
     대금 = (대금비교(df_IS[df_IS.id == s_느슨]), 대금비교(df_OOS[df_OOS.id == s_느슨]))   # v70: 수익·손실 거래의 거래대금 비교
+    시도기록('격자', li_IS + li_OOS, len(li_cfg), s_선정, pd.concat([s_IS, s_OOS]).거래당.mean())
     html = 리포트(li_IS, li_OOS, li_cfg, s_IS, s_OOS, df_IS, df_OOS, s_선정, c_선정, 경로, s_느슨, li_특징, 지연, 그룹, 대금)
     dic_config = ut.도구manager.ToolManager().config로딩()
     with open(os.path.join(dic_config['folder_설정'], 'server_info.json'), mode='rt', encoding='utf-8') as f:
@@ -1686,6 +1859,9 @@ def run(b_텔레그램=True):
             f_ = 필터요약(s_IS, s_OOS, '분폭')
             if f_ is not None:                                               # v79 직전 5분 고저폭 N% 별 칸 평균 거래당
                 s_msg += '\n· 직전 5분 고저폭 IS/OOS 거래당: ' + ' · '.join(f"{'없음' if N == 0 else f'{N}%'} {r.거래당_IS:+.2f}/{r.거래당_OOS:+.2f}" for N, r in f_.iterrows())
+            f_ = 필터요약(s_IS, s_OOS, '잔량')
+            if f_ is not None:                                               # v81·v82 호가 잔량 조건 별 칸 평균 거래당
+                s_msg += '\n· 호가 잔량 조건 IS/OOS 거래당: ' + ' · '.join(f"{N}번 {r.거래당_IS:+.2f}/{r.거래당_OOS:+.2f}" for N, r in f_.iterrows())
             TelegramAPI().send_메세지(s_메세지=s_msg, li_링크=[(s_파일, s_url)])
     return s_선정
 
@@ -1776,7 +1952,7 @@ def 리포트(li_IS, li_OOS, li_cfg, s_IS, s_OOS, df_IS, df_OOS, s_선정, c_선
         순위 = {**{k_: f'상위 {n + 1}위 ' for n, k_ in enumerate(좋은.index)}, **{k_: f'하위 {n + 1}위 ' for n, k_ in enumerate(나쁜.index)}}
         그림 = {}
         for s_일자, g in pd.concat([y for _, y in 묶음]).groupby('일자'):
-            arr, codes = 적재(s_일자); idx = {cd: k for k, cd in enumerate(codes)}
+            arr, codes = 적재(s_일자); idx = {cd: k for k, cd in enumerate(codes)}   # v81: 호가 잔량비율은 적재 채널 15·16 → 지표 에서 계산
             for k_, r in g.iterrows():
                 d = 지표(arr[idx[r['코드']]])
                 hh = T0 + int(r['진입초'])
@@ -1820,19 +1996,20 @@ def 리포트(li_IS, li_OOS, li_cfg, s_IS, s_OOS, df_IS, df_OOS, s_선정, c_선
     # v77 ⑬ 분봉 필터 - 이력 N일 별
     li_필터행, li_필터최고, 그림_필터 = [], [], ''
     f_ = 필터요약(s_IS, s_OOS)
-    f2 = 필터요약(s_IS, s_OOS, '분폭')                          # v79 ⑭ 직전 5분 고저폭
+    s_폭축 = '잔량' if '잔량' in DIC_진입축 else '분폭'           # v79 ⑭ 직전 5분 고저폭 · v81 ⑮ 호가 잔량비율 추세 - 같은 짝 비교 틀
+    f2 = 필터요약(s_IS, s_OOS, s_폭축)
     li_폭행, li_폭최고, 그림_폭 = [], [], ''
     if f2 is not None:
-        그림_폭 = 필터그림(f2, '분폭')
+        그림_폭 = 필터그림(f2, s_폭축)
         for N, r in f2.iterrows():
-            li_폭행.append([필터이름(N, '분폭'), f'{r.건수_IS:.0f}', pc(r.거래당_IS), f'{r.건수_OOS:.0f}', pc(r.거래당_OOS),
+            li_폭행.append([필터이름(N, s_폭축), f'{r.건수_IS:.0f}', pc(r.거래당_IS), f'{r.건수_OOS:.0f}', pc(r.거래당_OOS),
                           '-' if N == 0 else f'{r.나은_IS:.0f} / {r.나은_OOS:.0f} / {r.둘다:.0f} (of {r.칸_IS})'])
             k_ = r.최고t_IS
             if k_ is not None:
-                ii = s_IS.loc[[i_ for i_ in s_IS.index if i_.replace(f'|분폭{N}', '') == k_ and f'|분폭{N}|' in i_]]
+                ii = s_IS.loc[[i_ for i_ in s_IS.index if i_.replace(f'|{s_폭축}{N}', '') == k_ and f'|{s_폭축}{N}|' in i_]]
                 if len(ii):
                     id_ = ii.index[0]; oo = s_OOS.loc[id_] if id_ in s_OOS.index else None
-                    li_폭최고.append([필터이름(N, '분폭'), k_.replace('|', ' · '), f'{int(ii.iloc[0].건수)}', pc(ii.iloc[0].거래당), f'{ii.iloc[0].t:.2f}',
+                    li_폭최고.append([필터이름(N, s_폭축), k_.replace('|', ' · '), f'{int(ii.iloc[0].건수)}', pc(ii.iloc[0].거래당), f'{ii.iloc[0].t:.2f}',
                                    f'{int(oo.건수)}' if oo is not None else '0', pc(oo.거래당) if oo is not None else '-'])
     if f_ is not None:
         n_ = 필터대상수(li_IS + li_OOS)
@@ -1856,6 +2033,16 @@ def 리포트(li_IS, li_OOS, li_cfg, s_IS, s_OOS, df_IS, df_OOS, s_선정, c_선
 {table(['분봉 필터', '하루 대상 종목', 'IS 건수', 'IS 거래당', 'OOS 건수', 'OOS 거래당', '조건 없음보다 나은 칸'], li_필터행)}
 <h3>N일 별 IS 최고 칸 (t 기준) 과 그 OOS</h3>
 {table(['분봉 필터', '나머지 축', 'IS 건수', 'IS 거래당', 'IS t', 'OOS 건수', 'OOS 거래당'], li_필터최고)}""" if f_ is not None else
+               f"""<h2>9. 호가 잔량 조건 (v81·v82)</h2>
+<p>잔량비 = 매수호가 총잔량 ÷ 매도호가 총잔량 (1 보다 크면 사려는 대기 물량이 더 많음, 그 초의 마지막 호가), 역비 = 매도호가 총잔량 ÷ 매수호가 총잔량, 1단 잔량비 = 매수 1호가 수량 ÷ 매도 1호가 수량,
+매도 1~3단 변화 = 매도 1~3호가 수량 합 ÷ 20초 전 값 − 1. 이평은 시계 초 기준 이동평균. {'v83 조건은 같은 날짜의 사후 분석(수익 +1%↑ vs 손실 −1%↓ 단별 비교)에서 골랐으므로 IS·OOS 모두 이미 본 데이터다 - 독립 검증은 그 뒤 날짜로 해야 한다. ' if S_버전 == 'v83' else ''}
+조건: {' · '.join(f'{k}. {v}' for k, v in DIC_잔량조건.items() if k in DIC_진입축['잔량'])} - 진입 초에 이 조건이 참일 때만 진입한다.
+호가 수집이 10/12 부터라 그 뒤 {len(li_IS) + len(li_OOS)}일만 쓰고 같은 씨앗으로 다시 반반 나눴다 (IS {len(li_IS)}일 · OOS {len(li_OOS)}일). 나머지 진입·청산 조건은 v80 그대로이고, 같은 v80 진입 40칸마다 조건을 하나씩 붙였다.
+'나은 칸'은 같은 나머지 축의 조건 없음 칸보다 거래당이 높은 칸 수 (IS / OOS / 둘 다).</p>
+{그림_폭}
+{table(['호가 잔량비율 추세', 'IS 건수', 'IS 거래당', 'OOS 건수', 'OOS 거래당', '조건 없음보다 나은 칸'], li_폭행)}
+<h3>조건 별 IS 최고 칸 (t 기준) 과 그 OOS</h3>
+{table(['호가 잔량비율 추세', '나머지 축', 'IS 건수', 'IS 거래당', 'IS t', 'OOS 건수', 'OOS 거래당'], li_폭최고)}""" if f2 is not None and s_폭축 == '잔량' else
                f"""<h2>9. 분봉 상태 필터 — 직전 5분 고저폭 (v79)</h2>
 <p>진입 초가 속한 분 앞의 완결 분봉 5개(1초 캐시로 만든 시계 기준 1분봉) 최고가 ÷ 최저가 − 1 이 N% 이상일 때만 진입한다. 분봉 1년 연구에서 1분 +4% 급등 직전 5분 고저폭은 중앙 5.7% (평소 0.3%).
 나머지 진입·청산 조건은 v70 그대로이고, 같은 v70 진입 40칸마다 N = 조건 없음 / 2 / 3 / 5% 를 붙였다. '나은 칸'은 같은 나머지 축의 조건 없음 칸보다 거래당이 높은 칸 수 (IS / OOS / 둘 다).</p>
@@ -1919,6 +2106,7 @@ img{{max-width:100%;border-radius:6px}} .grid{{display:grid;grid-template-column
         ['⑪ 즉시 청산 방지 (v61)', {'없음': '조건 없음', '건수위': '진입 초에 체결 건수 5초 이평 > 30초 이평도 요구', '최소보유10': '진입 후 10초 안에는 하향돌파로 청산하지 않음'}[c.get('즉시청산방지', '없음')]],
         ['⑫ 체결량 5초 이평 하락 제외 (v61)', {'없음': '조건 없음', '1초': '체결량 5초 이평이 1초 전보다 낮으면 진입 안 함', '3초': '체결량 5초 이평이 3초 전보다 낮으면 진입 안 함'}[c.get('량5하락제외', '없음')]],
         ['⑭ 직전 5분 고저폭 (v79)', f"진입 초가 속한 분 앞의 완결 분봉 5개 최고가 ÷ 최저가 − 1 ≥ {c['분폭5']:g}%" if c.get('분폭5') else '조건 없음'],
+        ['⑮ 호가 잔량 조건 (v81·v82)', f"{DIC_잔량조건[c['잔량']]} (잔량비 = 매수 ÷ 매도 총잔량, 역비 = 매도 ÷ 매수 총잔량)" if c.get('잔량') else '조건 없음'],
         ['⑬ 분봉 필터 (v77)', f"최근 {c['이력일']} 거래일 분봉에 유동 1분 +4% 급등(분봉 종가 ÷ 직전 분 종가 − 1 ≥ 4%, 그 1분 거래대금 3억 이상)이 1회 이상인 종목만" if c.get('이력일') else '조건 없음'],
         ['⑩ 전일 1분 급등 이력 (v59)', {'무관': '조건 없음', '있음': f'직전 거래일 분봉에 1분 +{c.get("급등기준", N_전일급등):g}% 이상 오른 분이 있는 종목만', '없음': f'직전 거래일 분봉에 1분 +{c.get("급등기준", N_전일급등):g}% 이상 오른 분이 없는 종목만'}[c.get('전일급등', '무관')]],
         ['⑨ 체결량 30초 이평 하락 제외 (v58)', {'없음': '조건 없음', '10초': '체결량 30초 이평이 10초 전보다 낮으면 제외', '30초': '체결량 30초 이평이 30초 전보다 낮으면 제외',
@@ -1957,7 +2145,7 @@ img{{max-width:100%;border-radius:6px}} .grid{{display:grid;grid-template-column
 
 <h2>1. 로직 정의</h2>
 {table(['조건', '지표', '뜻'], left=True, rows=[
-    ['① 체결 폭증', '속도30 = 초당 체결 건수(1·2주 단주 제외)의 30초 이동평균 / 체결량5·체결량30 = 초당 체결량(주, 1·2주 단주 포함)의 5초 / 30초 이동평균 (거래 시간 기준)', f"기본으로 건수 30초 이평 ≥ {DIC_공통['속도기본30']}건 (v59 격자 0/3/5/8/12 → v61 부터 8 고정), 그리고 (v29 부터 5초 이평 ≥ 10건, v34 부터 3초 연속 10건 문턱은 뺐다) " + ("체결량 5초 이평이 30초 이평 이상인 동안 전체 (v55, v54 까지는 체결 건수 5초 이평 > 30초 이평)." if DIC_공통.get('폭증기준') == '체결량' else "5초 이평이 30초 이평 위에 있는 동안 전체.") + f" 거래 정지 구간(체결 없음 {N_정지최소초}초 이상 + 직전 30초 {N_정지직전건수}건 이상)은 이평을 긋지 않고, 정지가 풀리면 정지 전 체결로 이어 계산하며, 첫 체결 후 30초(5초 이평은 5초)까지는 이평을 만들지 않는다"],
+    ['① 체결 폭증', '속도30 = 체결횟수(초당, 1·2주 단주 제외)의 30초 이동평균 / 체결량5·체결량30 = 초당 체결량(주, 1·2주 단주 포함)의 5초 / 30초 이동평균 (거래 시간 기준)', f"기본으로 건수 30초 이평 ≥ {DIC_공통['속도기본30']}건 (v59 격자 0/3/5/8/12 → v61 부터 8 고정), 그리고 (v29 부터 5초 이평 ≥ 10건, v34 부터 3초 연속 10건 문턱은 뺐다) " + ("체결량 5초 이평이 30초 이평 이상인 동안 전체 (v55, v54 까지는 체결 건수 5초 이평 > 30초 이평)." if DIC_공통.get('폭증기준') == '체결량' else "5초 이평이 30초 이평 위에 있는 동안 전체.") + f" 거래 정지 구간(체결 없음 {N_정지최소초}초 이상 + 직전 30초 {N_정지직전건수}건 이상)은 이평을 긋지 않고, 정지가 풀리면 정지 전 체결로 이어 계산하며, 첫 체결 후 30초(5초 이평은 5초)까지는 이평을 만들지 않는다"],
     ['② 체결강도', '체결강도10 = 직전 10초 매수량 ÷ 매도량 × 100', '100 이 매수·매도 같음, 200 이면 매수가 매도의 2배. 1·2주 단주 제외, 매도가 없으면 999 (v10, 이전 매수비중 0.6/0.7/0.8 = 150/233/400)'],
     ['③ 10초 저가 대비', '저가10대비 = 10초 전 ~ 1초 전 최저가 대비 현재가 %', (f"직전 10초 최저가보다 +{DIC_공통['저가상승']:g}% 이상인가" if DIC_공통.get('저가조건', 1) else 'v63 부터 조건 삭제 (그 전') + " (v46: 10초 저가 이상 / v8~v44 +0.5% 이상 / v45 +0.5% 이하)" + ('' if DIC_공통.get('저가조건', 1) else ')')],
     ['③ 가격 추세 (v27, v29 변경)', '가격5 = 1초 종가의 5초 이동평균 (거래 시간 축)', f'5회: 진입 직전 10초(10번의 초 단위 변화) 동안 가격5 가 {N_추세상승}번 이상 올랐다 / 없음: 조건 안 씀 (v27·v28 은 10번 모두 = 엄격)'],
@@ -1969,6 +2157,8 @@ img{{max-width:100%;border-radius:6px}} .grid{{display:grid;grid-template-column
     ['⑪ 최소 보유 (v61·v62)', '청산 쪽 조건', f"진입은 체결량 기준, 청산은 체결 건수 기준이라 진입 초에 이미 청산 조건이 켜져 있으면 3초 만에 나간다 → 진입 후 N초 동안은 하향돌파로 청산하지 않는다. 격자 {'/'.join(map(str, DIC_진입축.get('최소보유', [DIC_공통.get('최소보유')])))}초"],
     ['⑪ 즉시 청산 방지 (v61)', '5초위30초 = 체결 건수 5초 이평 > 30초 이평 (청산 기준)', '진입은 체결량 기준, 청산은 체결 건수 기준이라 진입 초에 이미 청산 조건이 켜져 있으면 3초 만에 나간다. 격자 없음 / 건수위(진입 때 건수도 위) / 최소보유10(10초 동안 하향돌파 청산 안 함)'],
     ['⑫ 체결량 5초 이평 하락 제외 (v61)', '량5변화1·3 = 체결량 5초 이평 − 1초·3초 전 값 (거래 시간 축)', '5초 이평이 30초 이평 위라도 꺾이는 중이면 진입하지 않는다. 격자 없음 / 1초 / 3초'],
+    ['⑮ 호가 잔량 조건 (v81·v82)', '잔량비 = 매수호가 총잔량 ÷ 매도호가 총잔량 (그 초 마지막 호가, 갱신 없으면 앞 값) · 역비 = 그 역수 · 5·30 = 5초 / 30초 이동평균 (시계 초 기준)',
+     '사용자 규칙. v81 잔량비 5초 > 30초 이평은 칸 평균 IS·OOS 모두 나빠져 기각 (급등 순간엔 매수 잔량이 먹혀 비율이 내려간다) → v82 잔량비·역비 각각 1초 값 ≥ 2 · 5초 이평 ≥ 2 와 역비 5초 > 30초 이평. 호가 수집이 10/12 부터라 그 뒤 날짜만 쓰고 같은 씨앗으로 다시 반반 나눈다. 같은 v80 진입 40칸마다 조건 0~5'],
     ['⑭ 직전 5분 고저폭 (v79)', '분폭5 = 진입 초가 속한 분 앞의 완결 분봉 5개(시계 기준 1분봉, 1초 캐시의 초 고가·저가로 만듦, 체결 없는 분은 앞 분 값) 최고가 ÷ 최저가 − 1 (%)',
      '분봉 1년(244일) 연구에서 1분 +4% 급등 직전 5분 고저폭은 중앙 5.7% (평소 0.3%, 구분력 0.94) - 이미 크게 흔들리는 종목에서 급등이 난다. v70 거래 중 3% 미만 상태에서 들어간 거래가 IS·OOS 모두 −0.66~−0.68 로 나빴다 → v79 격자 조건 없음 / 2 / 3 / 5% 에서 3% 가 IS·OOS 일관 개선 → v80 부터 3% 고정'],
     ['⑬ 분봉 필터 (v77)', '급등경과일 = 직전 거래일부터 거슬러 가장 최근 유동 1분 +4% 급등(분봉 종가 ÷ 직전 분 종가 − 1 ≥ 4%, 그 1분 거래대금 ≥ 3억원, 09:01~15:19)이 며칠 전인가 (ut.분봉급등, 차트수집 분봉 db)',
@@ -2056,7 +2246,7 @@ img{{max-width:100%;border-radius:6px}} .grid{{display:grid;grid-template-column
 {table(['구분', '특징', 'IS 수익 거래', 'IS 손실 거래', 'IS 우연 확률', 'OOS 수익 거래', 'OOS 손실 거래', 'OOS 우연 확률', '판정'], li_대금행)}
 
 <h2>11. 거래별 그래프</h2>
-<p>위에서부터 가격(흰색 1초 종가 · 노랑 가격 5초 이평 · 보라 가격 30초 이평 · 매수 ▲ · 청산 ▼) / ① 초당 체결 건수(단주 제외)의 5초 이동평균(노랑)·30초 이동평균(보라), 보라 점선 = 30초 이평 문턱 / 체결량 = 초당 체결량(주, 1·2주 단주 포함 전체, 회색 막대)과 5초 이동평균(노랑)·30초 이동평균(보라) / 거래대금 = 초당 거래대금(백만원, 체결량 × 1초 종가, 회색 막대)과 5초 이동평균(노랑)·30초 이동평균(보라) / ② 10초 체결강도(로그 눈금, 회색선 100 = 균형){' / ③ 10초 저가 대비(보라)' if DIC_공통.get('저가조건', 1) else ''} / ③ 가격 추세 = 가격 5초 이평이 직전 10초 동안 몇 번 올랐나(빨강)·내렸나(파랑) - 빨강이 초록 점선({N_추세상승}) 이상일 때 켜짐 / ④ 평소 가격변동 = 진입 5분 전~1분 전 가격이 직전 초와 달랐던 초 비율(노랑) / 조건 충족 띠(노랑, 1초만 켜져도 1초 폭으로 표시)와 전부 충족(초록, 처음 켜지는 초가 진입). 제목 끝의 '평소 가격변동'은 진입 초의 ④ 값입니다. 회색 띠는 거래 정지 구간입니다(시각은 빼지 않았고, 지표는 이 구간을 건너뛰어 앞뒤 체결을 이어 계산).{' 가격 칸의 보라 점선이 ③ 하한(10초 전~1초 전 최저가, 이 선 위에서만 진입)입니다.' if DIC_공통.get('저가조건', 1) else ''}</p>
+<p>위에서부터 가격(흰색 1초 종가 · 노랑 가격 5초 이평 · 보라 가격 30초 이평 · 매수 ▲ · 청산 ▼) / ① 체결횟수(초당, 단주 제외)의 5초 이동평균(노랑)·30초 이동평균(보라), 보라 점선 = 30초 이평 문턱 / 체결량 = 초당 체결량(주, 1·2주 단주 포함 전체, 회색 막대)과 5초 이동평균(노랑)·30초 이동평균(보라) / 거래대금 = 초당 거래대금(백만원, 체결량 × 1초 종가, 회색 막대)과 5초 이동평균(노랑)·30초 이동평균(보라) / ② 10초 체결강도(로그 눈금, 회색선 100 = 균형){' / ③ 10초 저가 대비(보라)' if DIC_공통.get('저가조건', 1) else ''} / ③ 가격 추세 = 가격 5초 이평이 직전 10초 동안 몇 번 올랐나(빨강)·내렸나(파랑) - 빨강이 초록 점선({N_추세상승}) 이상일 때 켜짐 / ④ 평소 가격변동 = 진입 5분 전~1분 전 가격이 직전 초와 달랐던 초 비율(노랑) / 조건 충족 띠(노랑, 1초만 켜져도 1초 폭으로 표시)와 전부 충족(초록, 처음 켜지는 초가 진입). 제목 끝의 '평소 가격변동'은 진입 초의 ④ 값입니다. 회색 띠는 거래 정지 구간입니다(시각은 빼지 않았고, 지표는 이 구간을 건너뛰어 앞뒤 체결을 이어 계산).{' 가격 칸의 보라 점선이 ③ 하한(10초 전~1초 전 최저가, 이 선 위에서만 진입)입니다.' if DIC_공통.get('저가조건', 1) else ''}</p>
 {''.join(li_그림)}
 <div class="sub">재현: python analyzer/관성매매.py · 1초 캐시 {{work}}/분석/백테스팅/관성매매/_초캐시 · 거래 원장 {{work}}/분석/백테스팅/관성매매/{S_버전}_거래_IS·OOS.pkl</div>
 </div>"""
@@ -2067,8 +2257,14 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--cache', action='store_true')
     ap.add_argument('--no-telegram', action='store_true')
+    ap.add_argument('--proc', type=int, default=N_병렬)
+    ap.add_argument('--until', default=None)                 # v83: 이 날짜(YYYYMMDD)까지만 쓴다
+    ap.add_argument('--forward', action='store_true')        # 5단계: 봉인 날짜 전진검증 (개봉일 이후만)
     a = ap.parse_args()
-    if a.cache:
+    N_병렬, S_까지 = a.proc, a.until
+    if a.forward:
+        전진검증()
+    elif a.cache:
         캐시보충()                              # 격자는 돌리지 않고 캐시만 (run 도 시작할 때 같은 보충을 한다)
     else:
         run(b_텔레그램=not a.no_telegram)
