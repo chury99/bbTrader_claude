@@ -143,6 +143,19 @@
                        (v20 거래 1,184건을 5종목 꽉 찬 215일 · 빠진 29일로 나누면 거래당 +0.57 / −0.41%, 차이 표준오차 0.82 로 유의하지 않음 - 몰아 넣지 않는 보수 쪽)
                          → 자금운영 1,000만원: 전체 날짜 순 2,603만원 (1/n 2,649, 최대 낙폭 −31%) · IS 날만 1,718만원 (1,798) · OOS 날만 1,527만원 (1,483, +53%, −21%)
                          검산: 거래는 v20 과 같음 · 자금운영 현금 흐름 (매수 · 매도 · 비용) 따로 계산 일치
+      v22 (2026-11-17) 사용자 결정 - 종목 고르기 모델을 매달 다시 학습 (걸어가며): 그 달 첫 거래일 T 전에 정답이 확정된 날 (D+1 < T) 중 직전 60거래일로
+                       학습 → 그 달 내내 사용 (재학습채점 · 방식='재학습' · 창=60, 첫 달은 2025-08 ~ 10 의 59일). IS · OOS 날 모두 학습 밖. 청산 · 자금은 v21 그대로
+                       (v21 전체 점검에서 v21 모델이 미래 날짜가 섞인 IS 반쪽으로 학습돼 실전 기대치가 과대하다는 지적 → 실매매와 같은 방식으로 검증)
+                       → 하루 4.66 ~ 4.67종목 · 거래당 실측 IS +0.35 · OOS +0.44 (v21 +0.53 / +0.42), 비용 전 +0.84 / +0.93 → 문턱 통과 ·
+                         앞 절반 +0.09 · 뒤 절반 +0.71 · 판별력 0.70 / 0.72 · v21 과 같은 종목 57% (같은 종목 +0.76 · 다른 종목 −0.08)
+                         13개 달 계수 상위 10개 부호가 모든 달 같음 (저가거리 · 대금 · 코스닥 + · 고가거리 · 돌파60 · 가격 −) - 모델 구조는 안정
+                         자금운영 1,000만원 → 전체 날짜 순 2,036만원 (최대 낙폭 −38%) · IS 날만 1,350만원 · OOS 날만 1,512만원 (−26%)
+                         학습 창을 하루 당긴 점검 (그 달 1일 전 전부) 은 거래당 +0.27 → 하루 차이로 ±0.1 움직이는 잡음 수준
+                         검산: 학습 날짜 위치 계산 · 학습 · 채점 따로 → 13개 달 계수 일치 · 종목 1,137 / 1,138 같음 (1건은 진입가 = 저가 +1% 정확히 경계) ·
+                         청산 규칙 1,138건 어긋남 0 · 자금운영 현금 흐름 일치 · v22 원장 안 v21 = v21 원장
+                       리포트 (같은 날, 사용자 결정): 재학습 모델은 모든 날이 학습 밖이라 무작위 IS · OOS 나눔이 뜻이 없다 → 기준 칸이 재학습이면 두 무더기를
+                         날짜 시간 순 '앞 절반' · '뒤 절반' 으로 바꾸고 (DIC_구분 · 구()) 문턱도 앞 · 뒤 각각 적용, 검증 표에 전체 한 줄 · 거래 예시는 전체 거래에서.
+                         무작위 반반은 v21 처럼 IS 로 학습하는 칸에만 쓴다 (li_학IS). 최근 거래 표 날짜는 그날 첫 줄에 (1위가 저가 제외로 빠진 날 날짜가 안 보이던 것)
     사용
         python analyzer/종가매매.py            # 빠진 날짜 캐시 → 모델 → 매매 → 리포트 → 텔레그램
         python analyzer/종가매매.py --cache    # 날짜 캐시만
@@ -168,7 +181,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import ut
 import ut.분봉급등
 
-S_버전 = 'v21'
+S_버전 = 'v22'
 N_분할씨앗 = 20261112
 N_기간일 = 365
 S_기간끝 = '20261111'              # v9: D 마지막 날 고정 (이 뒤 날짜는 전진검증용으로 남긴다 - 늘리면 IS/OOS 분할이 바뀐다)
@@ -194,6 +207,8 @@ LI_정답 = [dict(id='도달', 이름='도달 · 다음날 고가 +10% (v1 모�
 N_붙음 = 3                         # v5 D 진입가가 D−1 종가 ±N% 안
 LI_모델 = [dict(id='전체', 이름='전체 · 점수 모델 학습 (리포트에 안 보임)', 몸통=None, 방식='모델', 진입=None, 숨김=True),
           dict(id='v21', 이름='v21 · 익절 매수가 +7% · 손절 매수가 −10% (D+1 처음 60분 보류) · 자금 한 종목 1/5', 몸통=None, 방식='전체점수', 진입=None, 청산='보유',
+               보유=dict(익절=[7] * 6, atr=1.0, 일=1, 전량=True, 손절유예=60, 익절기준='진입가', 손절기준='진입가'), 저가제외=1.0, 채움=False),
+          dict(id='v22', 이름='v22 · 종목 고르기 모델을 매달 직전 60일로 다시 학습 (걸어가며) · 청산·자금은 v21 그대로', 몸통=None, 방식='재학습', 창=60, 진입=None, 청산='보유',
                보유=dict(익절=[7] * 6, atr=1.0, 일=1, 전량=True, 손절유예=60, 익절기준='진입가', 손절기준='진입가'), 저가제외=1.0, 채움=False)]
 # v19 칸 - v18 · v19-손절 (= v20) · v19-본전 (본전기준=−1.0 만) · v19 (손절기준='진입가' + 본전기준=−1.0, 본전 정리는 평균 이득 없이 익절을 잘라 기각)
 # v18 칸 (손절 전일 종가 −10%) - 보유=dict(익절=[7] * 6, atr=1.0, 일=1, 전량=True, 손절유예=60, 익절기준='진입가') (+ 저가제외=1.0 · 채움=False)
@@ -209,7 +224,7 @@ LI_ATR배 = [1, 2, 3]               # v11 추적 폭 = ATR × 배
 LI_유예 = [0, 1, 2, 3, 5, 10]       # v11 1차 청산 뒤 추적을 쉬는 3분봉 수 (0 = 1차 봉 끝부터 추적)
 N_본전일 = 3                        # v11 이 날 (D+3) 부터 값이 진입가를 넘으면 남은 물량 전부 청산
 # v9 칸 (7/4/1% · 2×ATR · D+3) 은 기각 - 보유=dict(익절=[7, 4, 1], atr=2.0, 일=3)
-S_기준정답 = 'v21'                  # 그래프·예시를 그리는 칸 - v20 'v20' · v19 'v19' · v18 'v18' · v17 'v17' · v16 'v16-60' · v15 'v15' · v14 'v14' · v13 'v13' · v4 '익절' · v5 '장대10' · v6 '점수장대10' · v7 '시가2' · v8 '보유' · v9 'v9' · v10 'v8' · v11 'v11' · v12 'v12-7'
+S_기준정답 = 'v22'                  # 그래프·예시를 그리는 칸 - v21 'v21' · v20 'v20' · v19 'v19' · v18 'v18' · v17 'v17' · v16 'v16-60' · v15 'v15' · v14 'v14' · v13 'v13' · v4 '익절' · v5 '장대10' · v6 '점수장대10' · v7 '시가2' · v8 '보유' · v9 'v9' · v10 'v8' · v11 'v11' · v12 'v12-7'
 N_MA = 20                          # 일봉·3분봉 이동평균 (v13)
 LI_MA = [(20, '#ffa657', 1.0), (120, '#8b949e', 2.2)]   # 그리는 이동평균 (기간, 색, 굵기) - 주황 ma20 · 회색 굵은 선 ma120
 LI_봉손절 = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]   # 3분봉 종가 첫 도달을 적어 두는 문턱 % (전일 종가 대비)
@@ -579,6 +594,30 @@ def 학습(df_학습, 특징=None):
     return dict(w=w, mu=mu, sd=sd, 특징=특징)
 
 
+N_재학습창 = 60                     # v22 재학습 창 (거래일)
+DIC_구분 = {'IS': 'IS', 'OOS': 'OOS'}  # 리포트에 쓰는 두 무더기 이름 - v22 (재학습 기준) 은 시간 순 '앞 절반' · '뒤 절반' 으로 바꾼다 (run)
+
+
+def 구(nm):
+    return DIC_구분.get(nm, nm)
+
+
+def 재학습채점(df_전, li_일자, 창=N_재학습창):
+    """ v22: 달마다 그 달 첫 거래일 T 전에 정답이 확정된 날 (D+1 < T) 중 직전 '창' 거래일로 다시 학습 → 그 달 D 일을 채점
+        (실매매처럼 그 시점에 알 수 있는 날만 쓴다 - IS · OOS 날 모두 학습 밖) → (채점된 행, {월: 모델}) """
+    쌍 = {a: c for a, _, c, _ in li_분봉쌍()}
+    전체날 = sorted(쌍); 있는날 = sorted(df_전['일자'].unique())
+    li, 모델들 = [], {}
+    for 월 in sorted({d[:6] for d in li_일자}):
+        T = min(d for d in 전체날 if d[:6] == 월)
+        학습일 = [d for d in 있는날 if 쌍[d] < T][-창:]
+        mo = 학습(df_전[df_전['일자'].isin(학습일)])
+        mo.update(월=월, 기준일=T, 학습시작=학습일[0], 학습끝=학습일[-1], n학습=len(학습일))
+        모델들[월] = mo
+        li.append(채점(df_전[df_전['일자'].isin([d for d in li_일자 if d[:6] == 월])], mo))
+    return pd.concat(li), 모델들
+
+
 def 채점(df, 모델):
     df = df.copy()
     df['점수'] = 모델['w'][0] + 표준화값(df, 모델['mu'], 모델['sd'], 모델.get('특징')) @ 모델['w'][1:]
@@ -787,7 +826,7 @@ def 그림_K적중(t_IS, t_OOS):
     plt = _plt()
     fig, ax = plt.subplots(figsize=(7.2, 3.6))
     K = t_IS.index.values; xs = np.arange(len(K)); w = .2
-    for j, (lab, v, col) in enumerate([('모델 IS', t_IS['모델'], FG), ('모델 OOS', t_OOS['모델'], YEL), ('등락률 상위 OOS', t_OOS['등락순위'], PUR)]):
+    for j, (lab, v, col) in enumerate([(f"모델 {구('IS')}", t_IS['모델'], FG), (f"모델 {구('OOS')}", t_OOS['모델'], YEL), (f"등락률 상위 {구('OOS')}", t_OOS['등락순위'], PUR)]):
         b = ax.bar(xs + (j - 1) * w, v, w, color=col, alpha=.85, label=lab)
         ax.bar_label(b, fmt='%.0f', fontsize=7, color=FG)
     ax.axhline(t_OOS['무작위'].iloc[0], color=GREEN, ls='--', lw=1, label=f"무작위 {t_OOS['무작위'].iloc[0]:.1f}%")
@@ -812,6 +851,8 @@ def 그림_순위(d_IS, d_OOS):
 
 
 def 그림_계수(모델):
+    if 'w' not in 모델:                                                     # v22: {월: 모델} → 달마다 계수
+        return 그림_계수월(모델)
     plt = _plt()
     w = pd.Series(모델['w'][1:], index=모델.get('특징', LI_특징)).sort_values()
     fig, ax = plt.subplots(figsize=(7.2, 5.4))
@@ -896,7 +937,7 @@ def 그림_분포(t_IS, t_OOS):
     plt = _plt()
     fig, ax = plt.subplots(figsize=(7.2, 3.6)); bins = np.arange(-25, 16, 1)
     for nm, t, col in (('IS', t_IS, FG), ('OOS', t_OOS, YEL)):
-        ax.hist(t['수익'].clip(-25, 15), bins=bins, color=col, alpha=.45, label=f"{nm} 거래당 {t['수익'].mean():+.2f}%")
+        ax.hist(t['수익'].clip(-25, 15), bins=bins, color=col, alpha=.45, label=f"{구(nm)} 거래당 {t['수익'].mean():+.2f}%")
     ax.axvline(0, color=GREEN, ls='--', lw=1); ax.set_xlabel('거래당 실측 순수익 %'); ax.set_ylabel('건수'); ax.set_title(f'거래 수익 분포 ({S_기준정답} 모델)')
     ax.legend(fontsize=8); ax.grid(alpha=.25)
     return _img(fig)
@@ -1318,7 +1359,7 @@ def 격자HTML(g, 최선, v8):
 
 N_시작자본 = 10_000_000             # v17 자금운영 시작 자본 (원)
 N_자금칸 = 5                        # v21 자금운영 한 종목 = 자본 1/5 (빠진 칸은 현금) · None 이면 v17~v20 처럼 그날 사는 종목 수 n 으로 1/n
-S_비교칸 = None                     # 자금운영 그래프에 회색으로 겹치는 칸 (v19 'v18', 없으면 IS · OOS · 전체)
+S_비교칸 = 'v21'                    # 자금운영 그래프에 회색으로 겹치는 칸 (v22 'v21' · v19 'v18', None 이면 IS · OOS · 전체)
 
 
 def 자금운영(t, li_IS, li_OOS, n시작=N_시작자본, n칸=N_자금칸):
@@ -1346,6 +1387,38 @@ def 자금운영(t, li_IS, li_OOS, n시작=N_시작자본, n칸=N_자금칸):
     return dict(곡선=곡선, 요약=요약)
 
 
+def 그림_계수월(모델들):
+    """ v22: 달마다 다시 학습한 계수 (행 특징 · 열 달, 빨강 + · 파랑 −) - 계수가 달마다 얼마나 흔들리나 """
+    plt = _plt()
+    from matplotlib.colors import LinearSegmentedColormap
+    W = pd.DataFrame({k[2:4] + '/' + k[4:]: pd.Series(v['w'][1:], index=v['특징']) for k, v in 모델들.items()})
+    W = W.loc[W.abs().mean(1).sort_values(ascending=False).index]
+    fig, ax = plt.subplots(figsize=(7.2, 5.4))
+    lim = float(np.nanpercentile(W.abs().values, 97)) or 1
+    ax.imshow(W.values, aspect='auto', cmap=LinearSegmentedColormap.from_list('rb', [BLUE, PANEL, RED]), vmin=-lim, vmax=lim)
+    ax.set_yticks(range(len(W)), [DIC_특징.get(k, k)[:22] for k in W.index], fontsize=7); ax.set_xticks(range(W.shape[1]), W.columns, fontsize=7, rotation=45)
+    부호 = (np.sign(W).eq(np.sign(W.mean(1)), axis=0)).mean(1) * 100
+    for i, v in enumerate(부호.values):
+        ax.text(W.shape[1] - .4, i, f' {v:.0f}%', va='center', fontsize=6.5, color=FG)
+    ax.set_xlim(-.5, W.shape[1] + .6)
+    ax.set_title('달마다 다시 학습한 계수 (빨강 = +10% 쪽 · 파랑 = 반대, 오른쪽 % = 평균과 같은 부호인 달)', fontsize=9)
+    return _img(fig)
+
+
+def 월별모델표(모델들, d_전, t_전, t_비교, pc, table):
+    """ v22: 달마다 학습 기간 · 그 달 판별력 · 상위 K 적중 · 거래당 실측 (비교 칸과 나란히) · 비교 칸과 같은 종목 비율 """
+    rows = []
+    키비 = set(zip(t_비교['일자'], t_비교['종목코드'])) if t_비교 is not None else set()
+    for 월, mo in 모델들.items():
+        d_, t_ = d_전[d_전['일자'].str[:6] == 월], t_전[t_전['일자'].str[:6] == 월]
+        tb = t_비교[t_비교['일자'].str[:6] == 월] if t_비교 is not None else None
+        겹 = np.mean([k in 키비 for k in zip(t_['일자'], t_['종목코드'])]) * 100 if len(t_) else np.nan
+        rows.append([f'{월[:4]}-{월[4:]}', f"{mo['학습시작'][2:4]}/{mo['학습시작'][4:6]}/{mo['학습시작'][6:]} ~ {mo['학습끝'][2:4]}/{mo['학습끝'][4:6]}/{mo['학습끝'][6:]} ({mo['n학습']}일)",
+                     f"{d_['일자'].nunique()}일", f"{len(t_) / max(1, d_['일자'].nunique()):.1f}", f"{AUC(d_['정답'], d_['점수']):.3f}",
+                     f"{d_[d_['순위'] <= N_기준K]['정답'].mean() * 100:.0f}%", pc(t_['수익'].mean()), pc(tb['수익'].mean()) if tb is not None and len(tb) else '-', f'{겹:.0f}%'])
+    return table(['달', '학습한 날 (그 달 첫 거래일 전에 정답이 확정된 직전 날)', '거래일', '하루 평균 거래', '판별력', f'상위 {N_기준K} +{N_목표:g}% 도달', '거래당 실측', f'{S_비교칸} 거래당', f'{S_비교칸} 와 같은 종목'], rows)
+
+
 def 그림_자금(자금, n시작=N_시작자본, 비교=None):
     plt = _plt()
     fig, axs = plt.subplots(2, 1, figsize=(12, 5.6), sharex=True, gridspec_kw=dict(height_ratios=[3, 1.2]))
@@ -1353,10 +1426,10 @@ def 그림_자금(자금, n시작=N_시작자본, 비교=None):
     if 비교:                                                                # v19: 비교 칸 (현행) 은 회색으로
         nm_, c2 = 비교
         for nm, ls in (('전체', '-'), ('OOS', '--')):
-            axs[0].plot(c2[nm].index, c2[nm].values / 1e4, color=GRAY, lw=1.0, ls=ls, label=f"{nm_} {'전체 날짜 순' if nm == '전체' else 'OOS 날만'} → {c2[nm].iloc[-1] / 1e4:,.0f}만원")
+            axs[0].plot(c2[nm].index, c2[nm].values / 1e4, color=GRAY, lw=1.0, ls=ls, label=f"{nm_} {'전체 날짜 순' if nm == '전체' else 구('OOS') + ' 날만'} → {c2[nm].iloc[-1] / 1e4:,.0f}만원")
     li_선 = (('전체', YEL, 2.0), ('OOS', FG, 1.4)) if 비교 else (('전체', YEL, 2.0), ('IS', GRAY, 1.0), ('OOS', FG, 1.2))
     for nm, col, lw in li_선:
-        lab = {'전체': '전체 날짜 순 (IS + OOS)', 'IS': 'IS 날만 이어서', 'OOS': 'OOS 날만 이어서'}[nm]
+        lab = {'전체': f"전체 날짜 순 ({구('IS')} + {구('OOS')})", 'IS': f"{구('IS')} 날만 이어서", 'OOS': f"{구('OOS')} 날만 이어서"}[nm]
         axs[0].plot(c[nm].index, c[nm].values / 1e4, color=col, lw=lw, label=f"{S_기준정답 + ' ' if 비교 else ''}{lab} → {c[nm].iloc[-1] / 1e4:,.0f}만원")
     axs[0].axhline(n시작 / 1e4, color=GREEN, ls='--', lw=.8)
     axs[0].set_ylabel('자본 (만원)'); axs[0].set_title(f'자금운영 - {n시작 / 1e4:,.0f}만원에서 시작, 매일 D 15:15 {'한 종목 1/' + str(N_자금칸) + ' (빠진 칸은 현금)' if N_자금칸 else '사는 종목 수로 1/n 씩'} · D+1 회수한 돈 전부 다음 진입에 (실측 비용 뒤, 정수 주수)')
@@ -1370,7 +1443,7 @@ def 그림_자금(자금, n시작=N_시작자본, 비교=None):
 def 자금HTML(자금, pc, table, n시작=N_시작자본, dic_자금=None, s_비교=None):
     """ 자금 = 기준 칸 · dic_자금 = {칸: 자금운영} (v19: 칸마다 표 한 묶음) · s_비교 = 그래프에 회색으로 겹칠 칸 """
     dic_자금 = dic_자금 or {S_기준정답: 자금}
-    rows = [[(k_ if r_['구분'] == '전체' else ''), r_['구분'] + {'전체': ' (IS + OOS 날짜 순)', 'IS': ' 날만', 'OOS': ' 날만'}[r_['구분']], f"{r_['하루']:.2f}종목",
+    rows = [[(k_ if r_['구분'] == '전체' else ''), 구(r_['구분']) + {'전체': f" ({구('IS')} + {구('OOS')} 날짜 순)", 'IS': ' 날만', 'OOS': ' 날만'}[r_['구분']], f"{r_['하루']:.2f}종목",
              f"{r_['최종'] / 1e4:,.0f}만원", pc(r_['수익률'], 1), pc(r_['MDD'], 1), f"{r_['못산']}", f"{r_['놀림']:.1f}%"] for k_, z_ in dic_자금.items() for r_ in z_['요약']]
     비교 = (s_비교, dic_자금[s_비교]['곡선']) if s_비교 in dic_자금 and s_비교 != S_기준정답 else None
     return (f'<h3>자금운영 ({n시작 / 1e4:,.0f}만원 시작 · {"1/" + str(N_자금칸) if N_자금칸 else "1/n"} 복리)</h3>'
@@ -1471,6 +1544,7 @@ details{{margin:8px 0}} summary{{cursor:pointer;color:var(--mut)}}
 @media (max-width:600px){{.grid{{grid-template-columns:1fr}}}}
 """
     K = N_기준K; R = S_기준정답
+    c_R = next(c_ for c_ in LI_모델 if c_['id'] == R); 재학습 = c_R['방식'] == '재학습'
     n보류 = next(c_ for c_ in LI_모델 if c_['id'] == R)['보유'].get('손절유예') or 0
     보_ = next(c_ for c_ in LI_모델 if c_['id'] == R)['보유']
     익절말 = '매수가 (D 15:15 진입가)' if 보_.get('익절기준') == '진입가' else '전일 (D) 종가'
@@ -1487,16 +1561,16 @@ details{{margin:8px 0}} summary{{cursor:pointer;color:var(--mut)}}
     for c_ in LI_모델:
         for nm in ('IS', 'OOS'):
             s_ = dic_s[(nm, c_['id'])]
-            li_K행.append([c_['이름'] if nm == 'IS' else '', nm, f"{s_['건수']:,}", f"{s_['하루']:.1f}", f"{s_['적중']:.0f}%", f"{s_['익절']:.0f} / {s_['손절']:.0f} / {s_['시간']:.0f}",
+            li_K행.append([c_['이름'] if nm == 'IS' else '', 구(nm), f"{s_['건수']:,}", f"{s_['하루']:.1f}", f"{s_['적중']:.0f}%", f"{s_['익절']:.0f} / {s_['손절']:.0f} / {s_['시간']:.0f}",
                            pc(s_['비용전']), pc(s_['수익']), pc(s_['중앙']), f"{s_['이익일']:.0f}%", pc(s_['누적'], 1), pc(s_['MDD'], 1), 통과(s_)])
     # 최근 OOS 선택 종목
     t = dic_t[('OOS', R)]
     li_최근 = []
     for d in sorted(t['일자'].unique())[-8:]:
-        for _, r in t[t['일자'] == d].sort_values('순위').iterrows():
+        for j_, (_, r) in enumerate(t[t['일자'] == d].sort_values('순위').iterrows()):   # 날짜는 그날 첫 줄에 (1위가 저가 제외로 빠진 날도 표시)
             시각 = f"{(int(r['청산분']) + 540) // 60:02d}:{(int(r['청산분']) + 540) % 60:02d}"
             사유 = {'기간끝': '15:15 정리', '손절(첫봉뒤)': '손절(보류 끝)'}.get(r['사유'], r['사유'])
-            li_최근.append([f"{d[4:6]}/{d[6:]}" if r['순위'] == 1 else '', f"{r['종목명']}", f"{r['확률']:.0f}%", pc(r['등락'], 1), pc(r['다음최고'], 1), pc(r['다음최저'], 1),
+            li_최근.append([f"{d[4:6]}/{d[6:]}" if j_ == 0 else '', f"{r['종목명']}", f"{r['확률']:.0f}%", pc(r['등락'], 1), pc(r['다음최고'], 1), pc(r['다음최저'], 1),
                            f"<span style='color:{DIC_사유색[r['사유']]}'>{사유}</span> {시각}", pc(r['수익'], 1)])
     tk = 시간순
     표시 = [c_['id'] for c_ in LI_모델 if not c_.get('숨김')]
@@ -1506,19 +1580,20 @@ details{{margin:8px 0}} summary{{cursor:pointer;color:var(--mut)}}
 <h1>종가매매 {S_버전}</h1>
 <div class="sub">{pd.Timestamp.now():%Y-%m-%d} · 분봉 {len(li_전)}거래일 ({li_전[0][2:4]}/{li_전[0][4:6]}/{li_전[0][6:]} ~ {li_전[-1][2:4]}/{li_전[-1][4:6]}/{li_전[-1][6:]}) · D 15:15 진입 (저가 +1% 안 제외, 안 채움) → D+1 {익절말} +7% 전량 · {손절말} −10% 손절은 {보류문구(n보류)}{' · 종가 −1% 아래 끝난 종목은 매수가 넘으면 정리' if 본전말 else ''} · 15:15 정리 · 분석 전용(실매매 미연결)</div>
 <div class="cards">
-<div class="card">OOS 거래당 실측<b>{pc(so['수익'])}</b>비용 전 {pc(so['비용전'])} · IS {pc(si['수익'])}</div>
+<div class="card">{구('OOS')} 거래당 실측<b>{pc(so['수익'])}</b>비용 전 {pc(so['비용전'])} · {구('IS')} {pc(si['수익'])}{f" · 전체 {pc(t_전['수익'].mean())}" if 재학습 else ''}</div>
 <div class="card">하루 평균 거래<b>{so['하루']:.2f}종목</b>한 종목 자본 1/{N_자금칸 or 'n'} · 매일 전부 청산</div>
-<div class="card">자금운영 {N_시작자본 / 1e4:,.0f}만원 →<b>{자금['요약'][0]['최종'] / 1e4:,.0f}만원</b>전체 날짜 순 {pc(자금['요약'][0]['수익률'], 1)} · OOS 날만 {자금['요약'][2]['최종'] / 1e4:,.0f}만원</div>
-<div class="card">OOS 익절 / 손절 / 15:15 정리<b style="font-size:17px">{so['익절']:.0f} / {so['손절']:.0f} / {so['시간']:.0f}%</b>이익일 {so['이익일']:.0f}%</div>
-<div class="card">OOS 최대 낙폭 (복리, 1/5)<b>{so['MDD']:.0f}%</b>IS {si['MDD']:.0f}% · 시간순 확인 {pc(tk['수익'])}</div>
-<div class="card">종목 고르기 판별력<b>{a_OOS:.2f}</b>OOS · IS {a_IS:.2f} (0.5 = 무작위)</div>
-<div class="card">통과 문턱 (IS·OOS)<b style="font-size:15px">비용 전 ≥ +{N_문턱비용전}% · 실측 ≥ +{N_문턱실측}%</b>IS {통과(si)} · OOS {통과(so)}</div>
+<div class="card">자금운영 {N_시작자본 / 1e4:,.0f}만원 →<b>{자금['요약'][0]['최종'] / 1e4:,.0f}만원</b>전체 날짜 순 {pc(자금['요약'][0]['수익률'], 1)} · {구('OOS')} 날만 {자금['요약'][2]['최종'] / 1e4:,.0f}만원</div>
+<div class="card">{구('OOS')} 익절 / 손절 / 15:15 정리<b style="font-size:17px">{so['익절']:.0f} / {so['손절']:.0f} / {so['시간']:.0f}%</b>이익일 {so['이익일']:.0f}%</div>
+<div class="card">{구('OOS')} 최대 낙폭 (복리, 1/5)<b>{so['MDD']:.0f}%</b>{구('IS')} {si['MDD']:.0f}% · {tk.get('라벨', '시간순 확인')} {pc(tk['수익'])}</div>
+<div class="card">종목 고르기 판별력<b>{a_OOS:.2f}</b>{구('OOS')} · {구('IS')} {a_IS:.2f} (0.5 = 무작위)</div>
+<div class="card">통과 문턱 ({구('IS')} · {구('OOS')} 각각)<b style="font-size:15px">비용 전 ≥ +{N_문턱비용전}% · 실측 ≥ +{N_문턱실측}%</b>{구('IS')} {통과(si)} · {구('OOS')} {통과(so)}</div>
 </div>
 
 <h2>1. 규칙</h2>
 {table(['단계', '내용'], left=True, rows=[
     ['대상', f'분석대상종목 · 진입가 ≥ {N_최소가격:,}원 · 15:14 까지 거래대금 ≥ {N_최소대금 / 1e8:.0f}억 · 15:15 등락 < +{N_상한가:g}% (상한가 제외)'],
-    ['종목 고르기', f'대상 전체로 학습한 로지스틱 점수 (특징 {len(LI_특징)}개, IS 날짜로만 학습, 정답 = D+1 고가 +{N_목표:g}%) 로 D 15:15 시점 하루 상위 {K} 개'],
+    ['종목 고르기', (f'로지스틱 점수 (특징 {len(LI_특징)}개, 정답 = D+1 고가 +{N_목표:g}%) 를 <b>매달 첫 거래일에 다시 학습</b> - 그 시점에 정답이 확정된 (D+1 이 그날 전인) 직전 {c_R.get("창", N_재학습창)}거래일로만 학습하고 그 달 내내 쓴다 (실매매처럼 미래 날짜를 안 씀 · IS · OOS 날 모두 학습 밖) → D 15:15 시점 하루 상위 {K} 개'
+                     if 재학습 else f'대상 전체로 학습한 로지스틱 점수 (특징 {len(LI_특징)}개, IS 날짜로만 학습, 정답 = D+1 고가 +{N_목표:g}%) 로 D 15:15 시점 하루 상위 {K} 개')],
     ['제외', f'상위 {K} 중 15:15 진입가 ≤ 당일 (15:14 까지) 저가 +1% 인 종목은 사지 않는다 (종가 = 저가로 끝날 종목 거르기) · 다음 순위로 채우지 않고 그 칸은 현금 · 하루 평균 {교체:.2f}종목'],
     ['진입', f'D 15:15 분봉 시가 · 한 종목 자본 1/{N_자금칸} (정수 주수, 빠진 칸은 현금) · D+1 회수한 돈 전부를 다음 진입에 다시 1/{N_자금칸}' if N_자금칸 else 'D 15:15 분봉 시가 · 그날 사는 종목 수 n 으로 자본 1/n 씩 (정수 주수) · D+1 회수한 돈 전부 다음 진입에 다시 1/n'],
     ['청산', f'익절 = {익절말} +7% 에 닿는 즉시 전량 (시가부터 넘으면 시가) · 손절 = {손절말} −10% · ' + 보류문구(n보류, True) + 본전말 + ' · 모두 아니면 D+1 15:15 분봉 시가'],
@@ -1528,26 +1603,27 @@ details{{margin:8px 0}} summary{{cursor:pointer;color:var(--mut)}}
 <h2>2. 종목 고르기</h2>
 <div class="grid"><div>{그림_K적중(t_IS, t_OOS)}</div><div>{그림_계수(모델)}</div></div>
 {table(['검증', '판별력', f'상위 {K} +{N_목표:g}% 도달', '거래당 실측', '이익일'], [
-    ['무작위 반반 IS (학습)', f'{a_IS:.3f}', f"{t_IS.loc[K, '모델']:.1f}%", pc(si['수익']), f"{si['이익일']:.0f}%"],
-    ['무작위 반반 OOS', f'{a_OOS:.3f}', f"{t_OOS.loc[K, '모델']:.1f}%", pc(so['수익']), f"{so['이익일']:.0f}%"],
-    [f"시간순 (앞 {tk['n학습']}일 학습 → 뒤 {tk['n확인']}일)", f"{tk['auc']:.3f}", f"{tk['적중']:.1f}%", pc(tk['수익']), f"{tk['이익일']:.0f}%"],
-])}
+    [f"{구('IS')} {li_IS[0][2:4]}/{li_IS[0][4:6]} ~ {li_IS[-1][2:4]}/{li_IS[-1][4:6]} ({len(li_IS)}일)" if 재학습 else '무작위 반반 IS (학습)', f'{a_IS:.3f}', f"{t_IS.loc[K, '모델']:.1f}%", pc(si['수익']), f"{si['이익일']:.0f}%"],
+    [f"{구('OOS')} {li_OOS[0][2:4]}/{li_OOS[0][4:6]} ~ {li_OOS[-1][2:4]}/{li_OOS[-1][4:6]} ({len(li_OOS)}일)" if 재학습 else '무작위 반반 OOS', f'{a_OOS:.3f}', f"{t_OOS.loc[K, '모델']:.1f}%", pc(so['수익']), f"{so['이익일']:.0f}%"],
+] + ([[nm_, f"{x_['auc']:.3f}", f"{x_['적중']:.1f}%", pc(x_['수익']), f"{x_['이익일']:.0f}%"] for nm_, x_ in tk['행']] if '행' in tk else
+     [[f"시간순 (앞 {tk['n학습']}일 학습 → 뒤 {tk['n확인']}일)", f"{tk['auc']:.3f}", f"{tk['적중']:.1f}%", pc(tk['수익']), f"{tk['이익일']:.0f}%"]]))}
+{('<h3>달마다 다시 학습한 모델</h3>' + 월별모델표(모델, pd.concat([d_IS, d_OOS]), t_전, pd.concat([dic_t[('IS', S_비교칸)], dic_t[('OOS', S_비교칸)]]) if S_비교칸 and ('IS', S_비교칸) in dic_t else None, pc, table)) if 재학습 else ''}
 
 <h2>3. 매매</h2>
 {table(['칸', '', '건수', '하루 평균 거래', '익절 / 손절 / 본전 / 15:15 정리 %', '거래당 비용 전', '거래당 실측', '하루 손익 (자본 1/5, 빈 칸 현금)', '중앙', '이익일', '누적(복리, 1/5)', '최대 낙폭 (1/5)', '문턱'],
-       [[c_ if nm == 'IS' else '', nm, f"{dic_s[(nm, c_)]['건수']:,}", f"{dic_s[(nm, c_)]['하루']:.1f}", f"{dic_s[(nm, c_)]['익절']:.0f} / {dic_s[(nm, c_)]['손절']:.0f} / {dic_s[(nm, c_)]['본전']:.0f} / {dic_s[(nm, c_)]['시간']:.0f}",
+       [[c_ if nm == 'IS' else '', 구(nm), f"{dic_s[(nm, c_)]['건수']:,}", f"{dic_s[(nm, c_)]['하루']:.1f}", f"{dic_s[(nm, c_)]['익절']:.0f} / {dic_s[(nm, c_)]['손절']:.0f} / {dic_s[(nm, c_)]['본전']:.0f} / {dic_s[(nm, c_)]['시간']:.0f}",
          pc(dic_s[(nm, c_)]['비용전']), pc(dic_s[(nm, c_)]['수익']), pc(dic_s[(nm, c_)]['일평균'], 3), pc(dic_s[(nm, c_)]['중앙']), f"{dic_s[(nm, c_)]['이익일']:.0f}%", pc(dic_s[(nm, c_)]['누적'], 1),
          pc(dic_s[(nm, c_)]['MDD'], 1), 통과(dic_s[(nm, c_)])] for c_ in 표시 for nm in ('IS', 'OOS')])}
 {자금HTML(자금, pc, table, dic_자금=dic_자금, s_비교=S_비교칸) if 자금 else 그림_누적(dic_t, 표시)}
 <div class="grid"><div>{그림_분포(dic_t[('IS', R)], dic_t[('OOS', R)])}</div><div>{그림_청산분(t_전)}</div></div>
-{table(['최근 OOS', '종목', '점수', '15:15 등락', 'D+1 최고', '최저', '청산', '실측'], li_최근)}
+{table([f"최근 {구('OOS')}", '종목', '점수', '15:15 등락', 'D+1 최고', '최저', '청산', '실측'], li_최근)}
 
-<h2>4. 거래 예시 (OOS)</h2>
-<p class="sub">OOS 거래를 실측 수익률 순으로 줄 세워 나쁜 5 · 중위 5 · 좋은 5. 왼쪽 일봉 캔들 · 오른쪽 {N_봉손절}분봉 캔들 (진입가 대비 %, D 14:15 ~ D+1) - 빨강 상승 · 파랑 하락 · 주황 = ma20 · 회색 굵은 선 = ma120 (3분봉 ma120 은 D 09:00 부터 120봉이 차는 D 15:00 부터) · 노랑 띠 = 진입일 · 회색 띠 = 보유일 · 빨강 점선 = 익절선 · 파랑 점선 = 손절선 · 초록 = 진입가 · ▲ 진입 · ✕ 청산</p>
-{그림_보유예시(dic_경로, dic_t[('OOS', R)])}
+<h2>4. 거래 예시 ({'전체' if 재학습 else 'OOS'})</h2>
+<p class="sub">{'전체' if 재학습 else 'OOS'} 거래를 실측 수익률 순으로 줄 세워 나쁜 5 · 중위 5 · 좋은 5. 왼쪽 일봉 캔들 · 오른쪽 {N_봉손절}분봉 캔들 (진입가 대비 %, D 14:15 ~ D+1) - 빨강 상승 · 파랑 하락 · 주황 = ma20 · 회색 굵은 선 = ma120 (3분봉 ma120 은 D 09:00 부터 120봉이 차는 D 15:00 부터) · 노랑 띠 = 진입일 · 회색 띠 = 보유일 · 빨강 점선 = 익절선 · 파랑 점선 = 손절선 · 초록 = 진입가 · ▲ 진입 · ✕ 청산</p>
+{그림_보유예시(dic_경로, t_전 if 재학습 else dic_t[('OOS', R)])}
 
-<details><summary>IS {len(li_IS)}일 · OOS {len(li_OOS)}일 (무작위 반반, 씨앗 {N_분할씨앗})</summary>
-<p class="sub">IS: {', '.join(f'{x[2:4]}/{x[4:6]}/{x[6:]}' for x in li_IS)}</p><p class="sub">OOS: {', '.join(f'{x[2:4]}/{x[4:6]}/{x[6:]}' for x in li_OOS)}</p></details>
+{f'<p class="sub">{구("IS")} {len(li_IS)}일 · {구("OOS")} {len(li_OOS)}일 = 날짜 시간 순 반반 (재학습 모델이라 모든 날이 학습 밖 - 무작위 IS · OOS 나눔은 쓰지 않는다). 비교 칸 {S_비교칸} 은 무작위 반반 IS (씨앗 {N_분할씨앗}) 로 학습한 모델이라 앞 · 뒤 절반 모두 학습 날이 섞여 있다</p>' if 재학습 else
+  f'<details><summary>IS {len(li_IS)}일 · OOS {len(li_OOS)}일 (무작위 반반, 씨앗 {N_분할씨앗})</summary><p class="sub">IS: {", ".join(f"{x[2:4]}/{x[4:6]}/{x[6:]}" for x in li_IS)}</p><p class="sub">OOS: {", ".join(f"{x[2:4]}/{x[4:6]}/{x[6:]}" for x in li_OOS)}</p></details>'}
 <div class="sub">재현: python analyzer/종가매매.py · 날짜 캐시 {{work}}/분석/백테스팅/종가매매/_일캐시 · 거래 원장 {{work}}/분석/백테스팅/종가매매/{S_버전}_거래.pkl</div>
 </div>"""
     return html
@@ -1560,9 +1636,16 @@ def run(b_텔레그램=True, n_proc=N_병렬):
     warnings.simplefilter('ignore')
     캐시보충(n_proc)
     li_일자 = 기간일자()
-    li_IS, li_OOS = 분할(li_일자)
-    print(f'종가매매 {S_버전} · {len(li_일자)}일 ({li_일자[0]}~{li_일자[-1]}) · IS {len(li_IS)} · OOS {len(li_OOS)}', flush=True)
-    df = 패널(li_일자)
+    li_학IS, li_학OOS = 분할(li_일자)                                          # 점수 모델 학습용 무작위 반반 (v1 ~ v21 칸)
+    재학습기준 = next(c_ for c_ in LI_모델 if c_['id'] == S_기준정답)['방식'] == '재학습'
+    li_s_ = sorted(li_일자)
+    li_IS, li_OOS = (li_s_[:len(li_s_) // 2], li_s_[len(li_s_) // 2:]) if 재학습기준 else (li_학IS, li_학OOS)   # 표시 · 문턱용 두 무더기 (v22: 시간 순 앞 · 뒤 절반)
+    if 재학습기준:
+        DIC_구분.update(IS='앞 절반', OOS='뒤 절반')
+    print(f'종가매매 {S_버전} · {len(li_일자)}일 ({li_일자[0]}~{li_일자[-1]}) · {구('IS')} {len(li_IS)} · {구('OOS')} {len(li_OOS)}', flush=True)
+    li_앞 = [x[0] for x in li_분봉쌍() if x[0] < li_일자[0]] if any(c_['방식'] == '재학습' for c_ in LI_모델) else []
+    df_전 = 패널(li_앞 + li_일자)                                           # v22: 재학습용으로 기간 앞 날짜까지 (기간 안 행은 그대로)
+    df = df_전[df_전['일자'].isin(li_일자)].reset_index(drop=True)
     규칙 = next(c_ for c_ in LI_청산 if c_['id'] == S_기준청산)
 
     def 대상(d, c_):
@@ -1579,13 +1662,18 @@ def run(b_텔레그램=True, n_proc=N_병렬):
     dic_t, dic_s, dic_모델, dic_d, li_비교 = {}, {}, {}, {}, []
     for c_ in LI_모델:
         d = 대상(df, c_)
-        a_, b_ = d[d['일자'].isin(li_IS)], d[d['일자'].isin(li_OOS)]
+        a_, b_ = d[d['일자'].isin(li_학IS)], d[d['일자'].isin(li_학OOS)]
         if c_['방식'] == '모델':
             mo = 학습(a_, LI_특징 + (LI_장대특징 if c_['몸통'] else [])); a_, b_ = 채점(a_, mo), 채점(b_, mo); dic_모델[c_['id']] = mo
         elif c_['방식'] == '전체점수':                                       # v6: 전체 대상 모델 점수로 줄 세우고 패턴만 남긴다
             a_, b_ = 채점(a_, dic_모델['전체']), 채점(b_, dic_모델['전체'])
+        elif c_['방식'] == '재학습':                                         # v22: 매달 직전 N일로 다시 학습 (걸어가며)
+            s_, 모델들 = 재학습채점(대상(df_전, c_), li_일자, c_.get('창', N_재학습창)); dic_모델[c_['id']] = 모델들
+            a_, b_ = s_[s_['일자'].isin(li_IS)], s_[s_['일자'].isin(li_OOS)]
+            print('재학습', ' · '.join(f"{k} ({v['학습시작']}~{v['학습끝']} {v['n학습']}일)" for k, v in 모델들.items()), flush=True)
         else:
             a_, b_ = 몸통순(a_), 몸통순(b_)
+        x_ = pd.concat([a_, b_]); a_, b_ = x_[x_['일자'].isin(li_IS)], x_[x_['일자'].isin(li_OOS)]   # 학습 나눔 → 표시 나눔 (같으면 그대로)
         if c_.get('저가제외') is not None and not c_.get('채움', True):      # v14-빈칸: 순위는 그대로 두고 걸린 종목만 뺀다 (6위 이하는 안 올라옴)
             c_['제외수'] = sum(int(((x_['순위'] <= N_기준K) & (x_['저가거리'] <= c_['저가제외'])).sum()) for x_ in (a_, b_))
             a_, b_ = (x_[x_['저가거리'] > c_['저가제외']] for x_ in (a_, b_))
@@ -1621,25 +1709,34 @@ def run(b_텔레그램=True, n_proc=N_병렬):
     # 시간순 확인 - 앞 절반 날짜로 학습 → 뒤 절반 (기준 칸)
     c_기준 = next(c_ for c_ in LI_모델 if c_['id'] == S_기준정답)
     li_s = sorted(li_일자); h = len(li_s) // 2
+    if c_기준['방식'] == '재학습':                                           # v22: 이미 걸어가며 - 앞 · 뒤 절반으로 나눠 본다 (다시 학습하지 않음)
+        d_전 = pd.concat(dic_d[S_기준정답]); t_전 = pd.concat([dic_t[('IS', S_기준정답)], dic_t[('OOS', S_기준정답)]])
+        def _반(li_):
+            d_, t_ = d_전[d_전['일자'].isin(li_)], t_전[t_전['일자'].isin(li_)]; s_ = 매매요약(t_, len(li_))
+            return dict(이름=f"{li_[0][2:4]}/{li_[0][4:6]} ~ {li_[-1][2:4]}/{li_[-1][4:6]} ({len(li_)}일)", auc=AUC(d_['정답'], d_['점수']),
+                        적중=d_[d_['순위'] <= N_기준K]['정답'].mean() * 100, 수익=s_['수익'], 이익일=s_['이익일'], 비용전=s_['비용전'])
+        전 = _반(li_s)
+        시간순 = dict(전, n학습=c_기준.get('창', N_재학습창), n확인=len(li_s), 라벨='전체', 행=[('전체 ' + 전['이름'], 전)])
     dd = 대상(df, c_기준)
-    d_앞, d_뒤 = (df if c_기준['방식'] == '전체점수' else dd), dd
-    d_앞, d_뒤 = d_앞[d_앞['일자'].isin(li_s[:h])], d_뒤[d_뒤['일자'].isin(li_s[h:])]
-    d_뒤 = 채점(d_뒤, 학습(d_앞, 모델['특징']))
-    t_뒤 = (매매_보유(d_뒤, N_기준K, 경로6(d_뒤[d_뒤['순위'] <= N_기준K], n_proc), 설정=c_기준['보유']) if c_기준.get('청산') == '보유'
-            else 매매(d_뒤, N_기준K, 규칙={**규칙, '진입': c_기준.get('진입')})); s_뒤 = 매매요약(t_뒤, len(li_s) - h)
-    시간순 = dict(n학습=h, n확인=len(li_s) - h, auc=AUC(d_뒤['정답'], d_뒤['점수']), 적중=d_뒤[d_뒤['순위'] <= N_기준K]['정답'].mean() * 100,
-               수익=s_뒤['수익'], 이익일=s_뒤['이익일'])
-    print('시간순', 시간순, flush=True)
+    if c_기준['방식'] != '재학습':
+        d_앞, d_뒤 = (df if c_기준['방식'] == '전체점수' else dd), dd
+        d_앞, d_뒤 = d_앞[d_앞['일자'].isin(li_s[:h])], d_뒤[d_뒤['일자'].isin(li_s[h:])]
+        d_뒤 = 채점(d_뒤, 학습(d_앞, 모델['특징']))
+        t_뒤 = (매매_보유(d_뒤, N_기준K, 경로6(d_뒤[d_뒤['순위'] <= N_기준K], n_proc), 설정=c_기준['보유']) if c_기준.get('청산') == '보유'
+                else 매매(d_뒤, N_기준K, 규칙={**규칙, '진입': c_기준.get('진입')})); s_뒤 = 매매요약(t_뒤, len(li_s) - h)
+        시간순 = dict(n학습=h, n확인=len(li_s) - h, auc=AUC(d_뒤['정답'], d_뒤['점수']), 적중=d_뒤[d_뒤['순위'] <= N_기준K]['정답'].mean() * 100,
+                   수익=s_뒤['수익'], 이익일=s_뒤['이익일'])
+    print('시간순', {k: v for k, v in 시간순.items() if k != '행'}, flush=True)
     folder = folder_종가(); os.makedirs(folder, exist_ok=True)
     pd.to_pickle(dic_모델, os.path.join(folder, f'{S_버전}_모델.pkl'))             # 점수 모델 {칸: (w = [절편, 특징...] · mu · sd · 특징)}
-    pd.concat([v.assign(모델=k[1]) for k, v in dic_t.items()]).assign(구분=lambda x: np.where(x['일자'].isin(li_IS), 'IS', 'OOS')).to_pickle(os.path.join(folder, f'{S_버전}_거래.pkl'))
+    pd.concat([v.assign(모델=k[1]) for k, v in dic_t.items()]).assign(구분=lambda x: np.where(x['일자'].isin(li_IS), 구('IS'), 구('OOS'))).to_pickle(os.path.join(folder, f'{S_버전}_거래.pkl'))
     t_기준 = pd.concat([dic_t[('IS', S_기준정답)], dic_t[('OOS', S_기준정답)]])
     dic_경로 = dic_경로6 if c_기준.get('청산') == '보유' else 경로모음(t_기준, n_proc)
     슬롯 = 슬롯계좌(t_기준, li_IS, li_OOS) if c_기준.get('청산') == '보유' else None
     if 슬롯:
         print('5칸 계좌', {k: v for k, v in 슬롯.items() if not isinstance(v, (pd.Series, pd.DataFrame))}, flush=True)
     si, so = dic_s[('IS', S_기준정답)], dic_s[('OOS', S_기준정답)]
-    시도기록(li_일자, f"{S_기준정답} · {S_기준청산} 청산 K={N_기준K} IS 비용전 {si['비용전']:+.3f} 실측 {si['수익']:+.3f} / OOS 비용전 {so['비용전']:+.3f} 실측 {so['수익']:+.3f} / 시간순 실측 {시간순['수익']:+.3f}")
+    시도기록(li_일자, f"{S_기준정답} · {S_기준청산} 청산 K={N_기준K} {구('IS')} 비용전 {si['비용전']:+.3f} 실측 {si['수익']:+.3f} / {구('OOS')} 비용전 {so['비용전']:+.3f} 실측 {so['수익']:+.3f} / 시간순 실측 {시간순['수익']:+.3f}")
     비교 = 분석 = None                                                        # v13: 칸 비교 · 갭 분석은 리포트에서 뺀다
     격자H = 격자HTML(격자, 최선, next(r for r in li_비교 if r['모델'].startswith('v8'))) if '격자' in dir() else ''
     if '격자' in dir():
@@ -1665,7 +1762,7 @@ def run(b_텔레그램=True, n_proc=N_병렬):
         from xapi.API_telegram import TelegramAPI
         if requests.head(s_url, timeout=10).status_code == 200:
             s_msg = (f'[종가매매 {S_버전}] 리포트 완료 (상위 {N_기준K} · +7% 전량 · D+1)\n'
-                     + '\n'.join(f"· {c_['이름']}: 하루 {dic_s[('OOS', c_['id'])]['하루']:.1f}종목 · 거래당 실측 IS {dic_s[('IS', c_['id'])]['수익']:+.2f}% / OOS {dic_s[('OOS', c_['id'])]['수익']:+.2f}%" for c_ in LI_모델 if not c_.get('숨김')))
+                     + '\n'.join(f"· {c_['이름']}: 하루 {dic_s[('OOS', c_['id'])]['하루']:.1f}종목 · 거래당 실측 {구('IS')} {dic_s[('IS', c_['id'])]['수익']:+.2f}% / {구('OOS')} {dic_s[('OOS', c_['id'])]['수익']:+.2f}%" for c_ in LI_모델 if not c_.get('숨김')))
             TelegramAPI().send_메세지(s_메세지=s_msg, li_링크=[(s_파일, s_url)])
     return dic_s
 
