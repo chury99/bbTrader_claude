@@ -407,8 +407,11 @@ class RestAPIkiwoom:
 
         # 데이터 조회
         while s_연속조회여부 == 'Y':
-            # 데이터 요청
-            dic_헤더 = self.info_헤더(s_tr아이디=s_tr아이디) if s_연속조회여부 is None else\
+            # 데이터 요청 - 첫 요청은 연속조회 헤더를 붙이지 않는다 (연속조회키가 아직 없음)
+            # 2026-11-13 부터 키움이 '연속조회 Y + 빈 연속조회키' 첫 요청을 429 [1518] 로 거부한다.
+            # 예전 조건(s_연속조회여부 is None)은 초기값이 'Y' 라 한 번도 참이 된 적이 없어 첫 요청부터 Y 를 보냈다
+            # → 잔고조회(kt00005)가 전부 실패해 체결통보 유실 백스톱이 죽었다 (원익홀딩스 사례).
+            dic_헤더 = self.info_헤더(s_tr아이디=s_tr아이디) if s_연속조회키 is None else\
                 self.info_헤더(s_tr아이디=s_tr아이디, s_연속조회여부=s_연속조회여부, s_연속조회키=s_연속조회키)
             res = requests.post(url=s_서버주소, headers=dic_헤더, json=dic_바디, timeout=self.n_요청타임아웃)
 
